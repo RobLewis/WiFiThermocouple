@@ -7,25 +7,25 @@ final class Constants {
     
     // URLs to control the device
     
-    static final String urlRoot = "http://wifitempsensor.lan/";
+    private static final String urlRoot = "http://wifitempsensor.lan/";
     
-    static final String resetDefaults = "defaults";
-    static final String tempF = "temperature/F";
-    static final String tempC = "temperature/C";
-    static final String blueLedOn = "blueled/on";
-    static final String blueLedOff = "blueled/off";
-    static final String fanOn = "fan/on";
-    static final String fanOff = "fan/off";
-    static final String fanDc = "fan/dc";
-    static final String setFanDc = "fan/?dc=";
-    static final String setFanCl = "fan/?cl=";
-    static final String disableFanDc = "fan/dcdisable";
-    static final String enableFanDc = "fan/dcenable";
-    static final String currentSeconds = "time/CurrentSeconds";
-    static final String enableWatchdog = "time/watchdogenable";
-    static final String disableWatchdog = "time/watchdogdisable";
-    static final String watchdogStatus = "time/watchdogstatus";
-    static final String resetWatchdog = "time/watchdogreset";
+    private static final String resetDefaults = "defaults";
+    private static final String tempF = "temperature/F";
+    private static final String tempC = "temperature/C";
+    private static final String blueLedOn = "blueled/on";
+    private static final String blueLedOff = "blueled/off";
+    private static final String fanOn = "fan/on";
+    private static final String fanOff = "fan/off";
+    private static final String fanDc = "fan/dc";
+    private static final String setFanDc = "fan/?dc=";
+    private static final String setFanCl = "fan/?cl=";
+    private static final String disableFanDc = "fan/dcdisable";
+    private static final String enableFanDc = "fan/dcenable";
+    private static final String currentSeconds = "time/CurrentSeconds";
+    private static final String enableWatchdog = "time/watchdogenable";
+    private static final String disableWatchdog = "time/watchdogdisable";
+    private static final String watchdogStatus = "time/watchdogstatus";
+    private static final String resetWatchdog = "time/watchdogreset";
     
     static final URL RESET_DEFAULTS_URL = null;
     static final URL TEMP_F_URL = null;
@@ -37,6 +37,13 @@ final class Constants {
     static final URL FAN_DC_URL = null;
     static final URL FAN_SET_DC_URL = null;
     static final URL FAN_SET_CL_URL = null;
+    static final URL FAN_DISABLE_DC_URL = null;
+    static final URL FAN_ENABLE_DC_URL = null;
+    static final URL CURRENT_SECONDS_URL = null;
+    static final URL ENABLE_WD_URL = null;
+    static final URL DISABLE_WD_URL = null;
+    static final URL WD_STATUS_URL = null;
+    static final URL RESET_WD_URL = null;
     
     static {  // initializer
         
@@ -51,6 +58,13 @@ final class Constants {
             URL FAN_DC_URL = new URL( urlRoot + fanDc );
             URL FAN_SET_DC_URL = new URL( urlRoot + setFanDc );
             URL FAN_SET_CL_URL = new URL( urlRoot + setFanCl );
+            URL FAN_DISABLE_DC_URL = new URL( urlRoot + disableFanDc );
+            URL FAN_ENABLE_DC_URL = new URL( urlRoot + enableFanDc );
+            URL CURRENT_SECONDS_URL = new URL( urlRoot + currentSeconds );
+            URL ENABLE_WD_URL = new URL( urlRoot + enableWatchdog );
+            URL DISABLE_WD_URL = new URL( urlRoot + disableWatchdog );
+            URL WD_STATUS_URL = new URL( urlRoot + watchdogStatus );
+            URL RESET_WD_URL = new URL( urlRoot + resetWatchdog );
         }
         catch( MalformedURLException m) { }
         
