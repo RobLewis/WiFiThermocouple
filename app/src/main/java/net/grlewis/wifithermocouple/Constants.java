@@ -27,44 +27,45 @@ final class Constants {
     private static final String watchdogStatus = "time/watchdogstatus";
     private static final String resetWatchdog = "time/watchdogreset";
     
-    static final URL RESET_DEFAULTS_URL = null;
-    static final URL TEMP_F_URL = null;
-    static final URL TEMP_C_URL = null;
-    static final URL BLUE_LED_ON_URL = null;
-    static final URL BLUE_LED_OFF_URL = null;
-    static final URL FAN_ON_URL = null;
-    static final URL FAN_OFF_URL = null;
-    static final URL FAN_DC_URL = null;
-    static final URL FAN_SET_DC_URL = null;
-    static final URL FAN_SET_CL_URL = null;
-    static final URL FAN_DISABLE_DC_URL = null;
-    static final URL FAN_ENABLE_DC_URL = null;
-    static final URL CURRENT_SECONDS_URL = null;
-    static final URL ENABLE_WD_URL = null;
-    static final URL DISABLE_WD_URL = null;
-    static final URL WD_STATUS_URL = null;
-    static final URL RESET_WD_URL = null;
+    
+    static URL RESET_DEFAULTS_URL;
+    static URL TEMP_F_URL = null;
+    static URL TEMP_C_URL = null;
+    static URL BLUE_LED_ON_URL = null;
+    static URL BLUE_LED_OFF_URL = null;
+    static URL FAN_ON_URL = null;
+    static URL FAN_OFF_URL = null;
+    static URL FAN_DC_URL = null;
+    static URL FAN_SET_DC_URL = null;
+    static URL FAN_SET_CL_URL = null;
+    static URL FAN_DISABLE_DC_URL = null;
+    static URL FAN_ENABLE_DC_URL = null;
+    static URL CURRENT_SECONDS_URL = null;
+    static URL ENABLE_WD_URL = null;
+    static URL DISABLE_WD_URL = null;
+    static URL WD_STATUS_URL = null;
+    static URL RESET_WD_URL = null;
     
     static {  // initializer
         
-        try {
-            URL RESET_DEFAULTS_URL = new URL( urlRoot + resetDefaults );
-            URL TEMP_F_URL = new URL( urlRoot + tempF );
-            URL TEMP_C_URL = new URL( urlRoot + tempC );
-            URL BLUE_LED_ON_URL = new URL( urlRoot + blueLedOn );
-            URL BLUE_LED_OFF_URL = new URL( urlRoot + blueLedOff );
-            URL FAN_ON_URL = new URL( urlRoot + fanOn );
-            URL FAN_OFF_URL = new URL( urlRoot + fanOff );
-            URL FAN_DC_URL = new URL( urlRoot + fanDc );
-            URL FAN_SET_DC_URL = new URL( urlRoot + setFanDc );
-            URL FAN_SET_CL_URL = new URL( urlRoot + setFanCl );
-            URL FAN_DISABLE_DC_URL = new URL( urlRoot + disableFanDc );
-            URL FAN_ENABLE_DC_URL = new URL( urlRoot + enableFanDc );
-            URL CURRENT_SECONDS_URL = new URL( urlRoot + currentSeconds );
-            URL ENABLE_WD_URL = new URL( urlRoot + enableWatchdog );
-            URL DISABLE_WD_URL = new URL( urlRoot + disableWatchdog );
-            URL WD_STATUS_URL = new URL( urlRoot + watchdogStatus );
-            URL RESET_WD_URL = new URL( urlRoot + resetWatchdog );
+        try {  // need this to handle the possible MalformedURLException
+            RESET_DEFAULTS_URL = new URL( urlRoot + resetDefaults );
+            TEMP_F_URL = new URL( urlRoot + tempF );
+            TEMP_C_URL = new URL( urlRoot + tempC );
+            BLUE_LED_ON_URL = new URL( urlRoot + blueLedOn );
+            BLUE_LED_OFF_URL = new URL( urlRoot + blueLedOff );
+            FAN_ON_URL = new URL( urlRoot + fanOn );
+            FAN_OFF_URL = new URL( urlRoot + fanOff );
+            FAN_DC_URL = new URL( urlRoot + fanDc );
+            FAN_SET_DC_URL = new URL( urlRoot + setFanDc );
+            FAN_SET_CL_URL = new URL( urlRoot + setFanCl );
+            FAN_DISABLE_DC_URL = new URL( urlRoot + disableFanDc );
+            FAN_ENABLE_DC_URL = new URL( urlRoot + enableFanDc );
+            CURRENT_SECONDS_URL = new URL( urlRoot + currentSeconds );
+            ENABLE_WD_URL = new URL( urlRoot + enableWatchdog );
+            DISABLE_WD_URL = new URL( urlRoot + disableWatchdog );
+            WD_STATUS_URL = new URL( urlRoot + watchdogStatus );
+            RESET_WD_URL = new URL( urlRoot + resetWatchdog );
         }
         catch( MalformedURLException m) { }
         
