@@ -1,5 +1,7 @@
 package net.grlewis.wifithermocouple;
 
+import android.util.Log;
+
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -26,25 +28,27 @@ final class Constants {
     private static final String disableWatchdog = "time/watchdogdisable";
     private static final String watchdogStatus = "time/watchdogstatus";
     private static final String resetWatchdog = "time/watchdogreset";
+    private static final String readAnalog = "analog/in";
     
     
-    static URL RESET_DEFAULTS_URL;
-    static URL TEMP_F_URL = null;
-    static URL TEMP_C_URL = null;
-    static URL BLUE_LED_ON_URL = null;
-    static URL BLUE_LED_OFF_URL = null;
-    static URL FAN_ON_URL = null;
-    static URL FAN_OFF_URL = null;
-    static URL FAN_DC_URL = null;
-    static URL FAN_SET_DC_URL = null;
-    static URL FAN_SET_CL_URL = null;
-    static URL FAN_DISABLE_DC_URL = null;
-    static URL FAN_ENABLE_DC_URL = null;
-    static URL CURRENT_SECONDS_URL = null;
-    static URL ENABLE_WD_URL = null;
-    static URL DISABLE_WD_URL = null;
-    static URL WD_STATUS_URL = null;
-    static URL RESET_WD_URL = null;
+    static URL RESET_DEFAULTS_URL;         //
+    static URL TEMP_F_URL = null;          //
+    static URL TEMP_C_URL = null;          //
+    static URL BLUE_LED_ON_URL = null;     //
+    static URL BLUE_LED_OFF_URL = null;    //
+    static URL FAN_ON_URL = null;          //
+    static URL FAN_OFF_URL = null;         //
+    static URL FAN_DC_URL = null;          //
+    static URL FAN_SET_DC_URL = null;      //
+    static URL FAN_SET_CL_URL = null;      //
+    static URL FAN_DISABLE_DC_URL = null;  //
+    static URL FAN_ENABLE_DC_URL = null;   //
+    static URL CURRENT_SECONDS_URL = null; //
+    static URL ENABLE_WD_URL = null;       //
+    static URL DISABLE_WD_URL = null;      //
+    static URL WD_STATUS_URL = null;       //
+    static URL RESET_WD_URL = null;        //
+    static URL READ_ANALOG_URL = null;     //
     
     static {  // initializer
         
@@ -66,8 +70,11 @@ final class Constants {
             DISABLE_WD_URL = new URL( urlRoot + disableWatchdog );
             WD_STATUS_URL = new URL( urlRoot + watchdogStatus );
             RESET_WD_URL = new URL( urlRoot + resetWatchdog );
+            READ_ANALOG_URL = new URL( urlRoot + readAnalog);
         }
-        catch( MalformedURLException m) { }
+        catch( MalformedURLException m) {
+            Log.d( "Constants", "initializer threw MalformedURLException: " + m.getMessage() );
+        }
         
     }
     
