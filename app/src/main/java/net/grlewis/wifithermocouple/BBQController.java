@@ -156,7 +156,7 @@ class BBQController implements PIDController {
                 }
                 differentialTerm = ( currentVariableValue - previousVariableValue ) * diffCoeff;
                 previousVariableValue = currentVariableValue;
-                outputPercent = gain * ( proportionalTerm + integralTerm + differentialTerm );  // percent (duty cycle) of full-on heater
+                outputPercent = gain * ( proportionalTerm + integralTerm - differentialTerm );  // percent (duty cycle) of full-on heater
                 integralClamped = (outputPercent > 100f || outputPercent < 0f) && (integralTerm * error > 0f);  // out of range & same sign?
                 outputPercent = outputPercent < 0f? 0f : outputPercent;
                 outputPercent = outputPercent > 100f? 100f : outputPercent;
