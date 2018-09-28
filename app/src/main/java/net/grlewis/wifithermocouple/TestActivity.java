@@ -10,11 +10,13 @@ import android.support.v7.widget.Toolbar;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.SeekBar;
 import android.widget.ToggleButton;
 
 import com.jakewharton.rxbinding2.InitialValueObservable;
 import com.jakewharton.rxbinding2.view.RxView;
 import com.jakewharton.rxbinding2.widget.RxCompoundButton;
+import com.jakewharton.rxbinding2.widget.RxSeekBar;
 
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
@@ -26,6 +28,7 @@ public class TestActivity extends AppCompatActivity {
     
     Button updateTempButton;
     ToggleButton toggleFanButton;
+    SeekBar tempSlider;
     Button setTempButton;
     ToggleButton togglePIDButton;
     
@@ -33,11 +36,13 @@ public class TestActivity extends AppCompatActivity {
     InitialValueObservable<Boolean> pidToggleObservable;
     Observable<Object> tempUpdateObservable;
     Observable<Object> tempSetObservable;
+    InitialValueObservable<Integer> tempSliderObservable;
     
     Disposable fanToggleDisposable;
     Disposable pidToggleDisposable;
     Disposable tempUpdateDisposable;
     Disposable tempSetDisposable;
+    Disposable tempSliderDisposable;
     
     
     
@@ -53,12 +58,15 @@ public class TestActivity extends AppCompatActivity {
         
         updateTempButton = (Button) findViewById( R.id.temp_button );
         toggleFanButton = (ToggleButton) findViewById( R.id.fan_button );
+        tempSlider = (SeekBar) findViewById( R.id.temp_slider );
         setTempButton = (Button) findViewById( R.id.setpoint_button );
         togglePIDButton = (ToggleButton) findViewById( R.id.pid_button );
         
         fanToggleObservable = RxCompoundButton.checkedChanges( toggleFanButton );
         pidToggleObservable = RxCompoundButton.checkedChanges( togglePIDButton );
         tempUpdateObservable = RxView.clicks( updateTempButton );
+        tempSliderObservable = RxSeekBar.changes( tempSlider );
+        
         
         
         
@@ -131,15 +139,21 @@ public class TestActivity extends AppCompatActivity {
                                         + String.valueOf( tempJSON.getDouble( "TempF" ) ) + "°F" )
                         )
         );
+        tempSliderDisposable = tempSliderObservable.subscribe(
+                newValue -> { setTempButton.setText( "SETPOINT: " + String.valueOf( newValue ) + "°F" );
+                    // store new setpoint
+                }
+        );
         
     }  // onResume
     
     
     @Override
     protected void onPause( ) {
-        fanToggleDisposable.dispose();
+        fanToggleDisposable.dispose();  // TODO: combine these into a Composite Disposable
         pidToggleDisposable.dispose();
         tempUpdateDisposable.dispose();
+        tempSliderDisposable.dispose();
         super.onPause( );
     }
 }

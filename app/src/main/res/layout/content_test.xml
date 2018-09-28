@@ -32,12 +32,27 @@
         android:text="Turn Fan --"
         android:textSize="24sp"
         android:visibility="visible"
-        app:layout_constraintBottom_toTopOf="@id/setpoint_button"
+        app:layout_constraintBottom_toTopOf="@id/temp_slider"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/temp_button"
         tools:layout_margin="36dp"
         tools:padding="20dp" />
+
+    <SeekBar
+        android:id="@+id/temp_slider"
+        android:layout_width="0dp"
+        android:layout_height="160dp"
+        app:layout_constraintBottom_toTopOf="@id/setpoint_button"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/fan_button"
+        tools:layout_margin="36dp"
+        tools:padding="20dp"
+        android:max="700"
+        android:animationResolution="100"
+        />
+
 
     <Button
         android:id="@+id/setpoint_button"
@@ -49,7 +64,7 @@
         app:layout_constraintBottom_toTopOf="@id/pid_button"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/fan_button"
+        app:layout_constraintTop_toBottomOf="@id/temp_slider"
         tools:layout_margin="36dp"
         tools:padding="20dp" />
 
