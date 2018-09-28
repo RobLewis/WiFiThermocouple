@@ -19,7 +19,19 @@ import android.preference.RingtonePreference;
 import android.text.TextUtils;
 import android.view.MenuItem;
 
+import com.jakewharton.rxrelay2.BehaviorRelay;
+
+import org.json.JSONObject;
+
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
+
+import static net.grlewis.wifithermocouple.Constants.DEFAULT_TEMP_F;
+import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
+import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
 
 /**
  * A {@link PreferenceActivity} that presents a set of application settings. On
@@ -33,6 +45,9 @@ import java.util.List;
  * API Guide</a> for more information on developing a Settings UI.
  */
 public class DashboardActivity extends AppCompatPreferenceActivity {
+    
+    ThermocoupleApp appInstance;
+    
     
     /**
      * A preference value change listener that updates the preference's summary
@@ -120,6 +135,10 @@ public class DashboardActivity extends AppCompatPreferenceActivity {
     protected void onCreate( Bundle savedInstanceState ) {
         super.onCreate( savedInstanceState );
         setupActionBar( );
+    
+        ThermocoupleApp application = (ThermocoupleApp)getApplication();
+        appInstance = application.getSoleInstance();  // seems to work
+    
     }
     
     /**
@@ -179,6 +198,8 @@ public class DashboardActivity extends AppCompatPreferenceActivity {
             // guidelines.
             bindPreferenceSummaryToValue( findPreference( "example_text" ) );
             bindPreferenceSummaryToValue( findPreference( "example_list" ) );
+    
+    
         }
         
         @Override
@@ -251,4 +272,15 @@ public class DashboardActivity extends AppCompatPreferenceActivity {
             return super.onOptionsItemSelected( item );
         }
     }
+    
+    
+    BehaviorRelay<JSONObject> tempFUpdater = BehaviorRelay.createDefault( DEFAULT_TEMP_F );  // -999 until it receives a reading
+    
+  /*  WiFiCommunicator tempFGetter = new WiFiCommunicator();
+    
+    Observable<JSONObject> tempFObservable =
+            Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS, Schedulers.io() )
+            .map( everyFewSeconds -> tempFGetter.getJSONFromURL( TEMP_F_URL ))*/
+    
+    
 }

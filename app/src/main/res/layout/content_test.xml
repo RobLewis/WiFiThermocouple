@@ -1,0 +1,71 @@
+<android.support.constraint.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/button_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_marginTop="64dp" >
+
+    <!-- padding is inside the border, margin is outside -->
+
+    <!-- Button is a subclass of TextView -->
+    <Button
+        android:id="@+id/temp_button"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:text="Update Temp: --"
+        android:textSize="24sp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toTopOf="@id/fan_button"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:layout_margin="36dp"
+        tools:padding="20dp" />
+
+    <!-- CompoundButton (ABSTRACT subclass of Button) toggles state when pressed; has subclass ToggleButton -->
+    <ToggleButton
+        android:id="@+id/fan_button"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:text="Turn Fan --"
+        android:textSize="24sp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toTopOf="@id/setpoint_button"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/temp_button"
+        tools:layout_margin="36dp"
+        tools:padding="20dp" />
+
+    <Button
+        android:id="@+id/setpoint_button"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:text="Set Temperature"
+        android:textSize="24sp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toTopOf="@id/pid_button"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/fan_button"
+        tools:layout_margin="36dp"
+        tools:padding="20dp" />
+
+    <!-- CompoundButton (ABSTRACT subclass of Button) toggles state when pressed. ToggleButton extends it -->
+    <ToggleButton
+        android:id="@+id/pid_button"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:text="Turn PID --"
+        android:textSize="24sp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/setpoint_button"
+        tools:layout_margin="36dp"
+        tools:padding="20dp" />
+
+</android.support.constraint.ConstraintLayout>

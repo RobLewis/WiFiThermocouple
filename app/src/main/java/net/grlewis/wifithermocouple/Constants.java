@@ -2,6 +2,9 @@ package net.grlewis.wifithermocouple;
 
 import android.util.Log;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -29,56 +32,78 @@ final class Constants {
     private static final String watchdogStatus = "time/watchdogstatus";
     private static final String resetWatchdog = "time/watchdogreset";
     private static final String readAnalog = "analog/in";
+    private static final String getInfo = "info";
+    
+    static JSONObject DEFAULT_TEMP_F;
+    ;
+    
     
     
     static URL RESET_DEFAULTS_URL;         //
-    static URL TEMP_F_URL = null;          //
-    static URL TEMP_C_URL = null;          //
+    static URL TEMP_F_URL = null;          // JSON
+    static URL TEMP_C_URL = null;          // JSON
     static URL BLUE_LED_ON_URL = null;     //
     static URL BLUE_LED_OFF_URL = null;    //
     static URL FAN_ON_URL = null;          //
     static URL FAN_OFF_URL = null;         //
-    static URL FAN_DC_URL = null;          //
+    static URL FAN_DC_URL = null;          // JSON
     static URL FAN_SET_DC_URL = null;      //
     static URL FAN_SET_CL_URL = null;      //
     static URL FAN_DISABLE_DC_URL = null;  //
     static URL FAN_ENABLE_DC_URL = null;   //
-    static URL CURRENT_SECONDS_URL = null; //
+    static URL CURRENT_SECONDS_URL = null; // JSON
     static URL ENABLE_WD_URL = null;       //
     static URL DISABLE_WD_URL = null;      //
-    static URL WD_STATUS_URL = null;       //
+    static URL WD_STATUS_URL = null;       // JSON
     static URL RESET_WD_URL = null;        //
-    static URL READ_ANALOG_URL = null;     //
+    static URL READ_ANALOG_URL = null;     // JSON
+    static URL GET_INFO_URL = null;        // JSON
     
     static {  // initializer
         
         try {  // need this to handle the possible MalformedURLException
-            RESET_DEFAULTS_URL = new URL( urlRoot + resetDefaults );
-            TEMP_F_URL = new URL( urlRoot + tempF );
-            TEMP_C_URL = new URL( urlRoot + tempC );
-            BLUE_LED_ON_URL = new URL( urlRoot + blueLedOn );
-            BLUE_LED_OFF_URL = new URL( urlRoot + blueLedOff );
-            FAN_ON_URL = new URL( urlRoot + fanOn );
-            FAN_OFF_URL = new URL( urlRoot + fanOff );
-            FAN_DC_URL = new URL( urlRoot + fanDc );
-            FAN_SET_DC_URL = new URL( urlRoot + setFanDc );
-            FAN_SET_CL_URL = new URL( urlRoot + setFanCl );
-            FAN_DISABLE_DC_URL = new URL( urlRoot + disableFanDc );
-            FAN_ENABLE_DC_URL = new URL( urlRoot + enableFanDc );
+            
+            RESET_DEFAULTS_URL  = new URL( urlRoot + resetDefaults );
+            TEMP_F_URL          = new URL( urlRoot + tempF );
+            TEMP_C_URL          = new URL( urlRoot + tempC );
+            BLUE_LED_ON_URL     = new URL( urlRoot + blueLedOn );
+            BLUE_LED_OFF_URL    = new URL( urlRoot + blueLedOff );
+            FAN_ON_URL          = new URL( urlRoot + fanOn );
+            FAN_OFF_URL         = new URL( urlRoot + fanOff );
+            FAN_DC_URL          = new URL( urlRoot + fanDc );
+            FAN_SET_DC_URL      = new URL( urlRoot + setFanDc );
+            FAN_SET_CL_URL      = new URL( urlRoot + setFanCl );
+            FAN_DISABLE_DC_URL  = new URL( urlRoot + disableFanDc );
+            FAN_ENABLE_DC_URL   = new URL( urlRoot + enableFanDc );
             CURRENT_SECONDS_URL = new URL( urlRoot + currentSeconds );
-            ENABLE_WD_URL = new URL( urlRoot + enableWatchdog );
-            DISABLE_WD_URL = new URL( urlRoot + disableWatchdog );
-            WD_STATUS_URL = new URL( urlRoot + watchdogStatus );
-            RESET_WD_URL = new URL( urlRoot + resetWatchdog );
-            READ_ANALOG_URL = new URL( urlRoot + readAnalog);
+            ENABLE_WD_URL       = new URL( urlRoot + enableWatchdog );
+            DISABLE_WD_URL      = new URL( urlRoot + disableWatchdog );
+            WD_STATUS_URL       = new URL( urlRoot + watchdogStatus );
+            RESET_WD_URL        = new URL( urlRoot + resetWatchdog );
+            READ_ANALOG_URL     = new URL( urlRoot + readAnalog );
+            GET_INFO_URL        = new URL( urlRoot + getInfo );
+    
+            DEFAULT_TEMP_F = new JSONObject( "\"TempF\":-999" );
+    
         }
         catch( MalformedURLException m) {
             Log.d( "Constants", "initializer threw MalformedURLException: " + m.getMessage() );
+        }
+        catch( JSONException j) {
+            Log.d( "Constants", "initializer threw JSONException: " + j.getMessage() );
         }
         
     }
     
     
+    static final int TEMP_UPDATE_SECONDS = 5;  // seconds between temp polling
+    static final int WATCHDOG_CHECK_SECONDS = 40;
+    static final int FAN_CONTROL_TIMEOUT_SECS = 2;  // can't wait around for fan commands
+    static final int PID_LOOP_INTERVAL_SECS = 10;  // run the PID control loop every 10 seconds(?)
+    static final float MIN_OUTPUT_PCT = 5f;  // fan on duty cycle % less than this are ignored(?)
+    
+    static final String SOFTWARE_VERSION = "0.8";
+    static final String HARDWARE_VERSION = "0.8";
     
     
     

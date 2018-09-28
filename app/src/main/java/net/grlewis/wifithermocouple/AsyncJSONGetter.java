@@ -15,6 +15,7 @@ import io.reactivex.schedulers.Schedulers;
 import okhttp3.Headers;
 import okhttp3.ResponseBody;
 import java.io.IOException;
+import java.util.UUID;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -28,26 +29,28 @@ import okhttp3.Response;
  * Modified from AsyncDownloader
  *
  *
- * myJsonGetter = new AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient );
+ * myJsonGetter = new AsyncHTTPRequester( URL jsonURL, OkHttpClient httpClient );
  * myJsonGetter.get().subscribe( theJSON -> { handle it }, theThrowable -> { handle failure } );
  *
- * since you're only supposed to have 1 instance of OkHttpClient, you pass it in
+ * Since you're only supposed to have 1 instance of OkHttpClient, you pass it in
  * however if you pass null for the client, we create one
  *
- * Changed to make setSourceURL return the Getter so you can chain with .get()
+ * Changed to make setURL return the Getter so you can chain with .request()
  *
  * 2018-08: updating to RxJava2
  *
- *
+ * * 2018-09-28: added request UUID to error messages
+ *               pass or create new request UUID when setting a new URL
  */
 
 public class AsyncJSONGetter {  // updating from GlucometerApp version to use RxJava2
     
-    private static final String TAG = AsyncJSONGetter.class.getSimpleName( );
+    private static final String TAG = AsyncHTTPRequester.class.getSimpleName( );
     
     private final Single<JSONObject> getJSON;
     private URL sourceURL;  // mutable
-    private final OkHttpClient client;
+    private OkHttpClient client;  // created if not passed
+    private UUID requestUUID;     // to identify the request that produced result (copied from HTTP Requester)
     
     
     class JSONGetterOnSubscribe implements SingleOnSubscribe<JSONObject> {
@@ -62,50 +65,65 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         // SEE https://github.com/ReactiveX/RxJava/issues/4787
         
         @Override
-        public void subscribe( final SingleEmitter<JSONObject> emitter ) {
-    
+        public void subscribe( final SingleEmitter<JSONObject> emitter ) throws Exception {
+            
+            if( emitter == null ) throw new IllegalArgumentException( "Can't subscribe with a null SingleEmitter" );
+            
             Request request = new Request.Builder( )
                     .url( sourceURL )
+                    .tag( UUID.class, requestUUID )  // added from HTTP Requester
                     .build( );
-    
-            client.newCall( request ).enqueue( new Callback( ) {
+            
+            Call call = client.newCall( request );
+            emitter.setCancellable( call::cancel );  // attempt to cancel the call if requester is unsubscribed
+            
+            call.enqueue( new Callback( ) {
                 // Note callback is made after the response headers are ready. Reading the response body may still block.
-        
+                
                 @Override
                 public void onFailure( @NonNull Call call, @NonNull IOException e ) {
-                    emitter.onError( new IOException( TAG + ": onFailure Callback while starting JSON fetch: ", e ) );
+                    if( !emitter.tryOnError( new IOException( TAG + ": onFailure Callback while starting JSON request with UUID: "
+                            + requestUUID.toString(), e ) ) ) {
+                        Log.d( TAG, "JSON request canceled before failure received" );
+                    }
                 }
-        
+                
                 @Override
                 public void onResponse( @NonNull Call call, @NonNull Response response ) {
-                    if ( !response.isSuccessful( ) ) {
-                        emitter.onError( new IOException( TAG + ": JSON Fetch failed with HTTP status: " + response.message( ) ) );
-                    } else {  // successful response
-                        try {
-                            ResponseBody responseBody = response.body( );
-                            Headers headers = response.headers( );
-                            response.close( );
-                    
-                            String contentType;
-                            JSONObject returnedJSON = null;
-                    
-                            if ( (contentType = headers.get( "Content-type" )).equalsIgnoreCase( "application/json" ) ) {
-                                try {
-                                    returnedJSON = new JSONObject( responseBody.string( ) );
-                                } catch ( JSONException j ) {
-                                    emitter.onError( new JSONException( TAG + ": Invalid JSON returned from fetch: " + j.getMessage( ) ) );
-                                    return;  // new
+                    if( !emitter.isDisposed() ) {  // perhaps the request was canceled before response received?
+                        if ( !response.isSuccessful( ) ) {
+                            emitter.onError( new IOException( TAG + ": JSON request UUID " + requestUUID.toString()
+                                    + " failed with HTTP status: " + response.message( ) ) );
+                        } else {  // successful response
+                            try {
+                                ResponseBody responseBody = response.body( );
+                                Headers headers = response.headers( );
+                                
+                                String contentType;
+                                JSONObject returnedJSON = null;
+                                
+                                if ( (contentType = headers.get( "Content-type" )).equalsIgnoreCase( "application/json" ) ) {
+                                    try /*( response )*/ {  // apparent bug, "not supported"
+                                        returnedJSON = new JSONObject( responseBody.string( ) );
+                                        returnedJSON.put( "RequestUUID", requestUUID.toString() );  // add the request UUID
+                                    } catch ( JSONException j ) {
+                                        emitter.onError( new JSONException( TAG + ": Invalid JSON returned from fetch: " + j.getMessage( ) ) );
+                                    }
+                                    emitter.onSuccess( returnedJSON );
+                                } else {  // content type not JSON
+                                    emitter.onError( new JSONException(
+                                            TAG + ": Returned content type header is not JSON but " + contentType ) );
                                 }
-                                emitter.onSuccess( returnedJSON );
-                            } else {  // content type not JSON
-                                emitter.onError( new JSONException(
-                                        TAG + ": Returned content type header is not JSON but " + contentType ) );
+                            } catch ( IOException e ) {
+                                emitter.onError( new IOException( TAG + ": Error fetching JSON from URL "
+                                        + sourceURL.toString( ) + " (request UUID: " + requestUUID.toString() + ")", e ) );
                             }
-                        } catch ( IOException e ) {
-                            emitter.onError( new IOException( TAG + ": Error fetching JSON "
-                                    + "from URL " + sourceURL.toString( ), e ) );
-                        }
-                    }  // else successful response
+                        }  // else successful response
+                    } else {  // emitter has been disposed
+                        Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
+                                + " subscription disposed before response received" );
+                    }
+                    response.close();  // always do this
                 }  // onResponse()
             } );  // Callback & enqueue()
         }
@@ -143,7 +161,7 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                             String contentType;
                             JSONObject returnedJSON = null;
                             
-                            if ( (contentType = headers.get( "Content-type" )).equalsIgnoreCase( "application/json" ) ) {
+                            if ( (contentType = headers.request( "Content-type" )).equalsIgnoreCase( "application/json" ) ) {
                                 try {
                                     returnedJSON = new JSONObject( responseBody.string( ) );
                                 } catch ( JSONException j ) {
@@ -166,20 +184,29 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                 }  // onResponse()
             } );  // Callback & enqueue()
         }  // call()*/
-    }  // class JSONGetterOnSubscribe
+        
+        
+    }  // class HTTPRequesterOnSubscribe
     
     
-  
-  
-  
-  
+    
     // constructor
-    public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient ) {
+    public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient, UUID requestID ) {
         getJSON = Single.create( new JSONGetterOnSubscribe( ) );
         sourceURL = jsonURL;
-        client = httpClient == null? new OkHttpClient( ) : httpClient;  // if we weren't passed a client, create one
+        requestUUID = requestID;
+        client = client == null?               // if client is null
+                httpClient == null?            // and passed httpClient is also null
+                        new OkHttpClient( ) :  // create a new client; if passed httpClient is not null
+                        httpClient             // use it
+                :                              // but if client is not null
+                client;                        // keep it
     }
-    // should we have a no-arg version?
+    
+    // constructor that supplies a random request UUID if we don't
+    public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient ) {
+        this( jsonURL, httpClient, UUID.randomUUID() );
+    }
     
     /*
     Alternate:
@@ -192,20 +219,31 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         this( new URL( jsonURLString ), httpClient );
     }
     
-    // after getting the JSON Getter instance, subscribe to this to do the get
+    // after getting the JSON Getter instance, subscribe to this to do the request
     public Single<JSONObject> get( ) {
-        return getJSON.subscribeOn( Schedulers.io( ) );
+        return getJSON.subscribeOn( Schedulers.io( ) );  // note off main thread
     }
     
     // change source URL: returns the getter so you can chain with .get()
     public AsyncJSONGetter setSourceURL( URL newURL ) {
         sourceURL = newURL;
+        requestUUID = UUID.randomUUID();
         return this;
     }
+    
+    public AsyncJSONGetter setSourceURL( URL newURL, UUID newRequestUUID ) {
+        sourceURL = newURL;
+        requestUUID = newRequestUUID;
+        return this;
+    }
+    
     
     public AsyncJSONGetter setSourceURL( String newURLString ) throws Exception { // malformed URL exception
         sourceURL = new URL( newURLString );
         return this;
     }
+    
+    public UUID getRequestUUID( ) {return requestUUID; }
+    
 }
 
