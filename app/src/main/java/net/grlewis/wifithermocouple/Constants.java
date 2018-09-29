@@ -96,16 +96,21 @@ final class Constants {
     }
     
     
-    static final int TEMP_UPDATE_SECONDS = 5;  // seconds between temp polling
+    static final int TEMP_UPDATE_SECONDS = 5;  // seconds between temp polling (can be different from PID period)
     static final int WATCHDOG_CHECK_SECONDS = 40;
     static final int FAN_CONTROL_TIMEOUT_SECS = 2;  // can't wait around for fan commands
-    static final int PID_LOOP_INTERVAL_SECS = 10;  // run the PID control loop every 10 seconds(?)
-    static final float MIN_OUTPUT_PCT = 5f;  // fan on duty cycle % less than this are ignored(?)
+    static final float MIN_OUTPUT_PCT = 5f;  // fan on duty cycle % less than this are ignored(?)--TODO: should it be in PIDState?
     
     static final String SOFTWARE_VERSION = "0.8";
     static final String HARDWARE_VERSION = "0.8";
     
-    
+    // New, for PIDState constructor
+    static final float DEFAULT_SETPOINT = 250f;    // TODO: consider °F or °C?
+    static final float DEFAULT_GAIN = 5f;          // TODO: value?
+    static final float DEFAULT_PROP_COEFF = 1f;    // TODO: value?
+    static final float DEFAULT_INT_COEFF = 1f;     // TODO: value?
+    static final float DEFAULT_DIFF_COEFF = 1f;    // TODO: value?
+    static final float DEFAULT_PERIOD_SECS = 10f;  // TODO: value?
     
     
     

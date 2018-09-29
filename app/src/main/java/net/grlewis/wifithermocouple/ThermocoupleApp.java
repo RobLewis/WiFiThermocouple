@@ -1,9 +1,7 @@
 package net.grlewis.wifithermocouple;
 
+import android.app.Activity;
 import android.app.Application;
-
-import java.util.ArrayList;
-import java.util.List;
 
 
 /*
@@ -36,7 +34,11 @@ public class ThermocoupleApp extends Application {
     
     // Application Globals (instance variables of the Singleton)
     WiFiCommunicator wifiCommunicator;
-    ApplicationState state;
+    ApplicationState appState;
+    PIDState pidState;
+    
+    TestActivity testActivityRef;
+    BBQController bbqController;
     
     
     
@@ -58,10 +60,15 @@ public class ThermocoupleApp extends Application {
         // do all your initialization in this instance method
         // (with instance members, not static)
         wifiCommunicator = new WiFiCommunicator();
-        state = new ApplicationState();
+        appState = new ApplicationState();
+        pidState = new PIDState();
+        bbqController = new BBQController();
     
     
     
     }
+    
+    void setTestActivityRef( TestActivity testActivity ) { testActivityRef = testActivity; }
+    
     
 }

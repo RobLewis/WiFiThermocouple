@@ -1,6 +1,7 @@
 package net.grlewis.wifithermocouple;
 
 import android.annotation.TargetApi;
+import android.widget.Toast;
 
 import org.json.JSONObject;
 
@@ -10,6 +11,7 @@ import java.util.function.Consumer;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
+import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
@@ -63,7 +65,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     // note AsyncJSONGetter is a Single; this combines the series of Single outputs into an Observable stream
     Observable<JSONObject> tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )
             .flatMapSingle( getTempFNow -> tempFGetter.get() )  // combines outputs of Singles into an Observable stream
-            .doOnNext( jsonF -> appInstance.state.setCurrentTempF( jsonF.getLong( "TempF" ) ) )
+            .doOnNext( jsonF -> appInstance.appState.setCurrentTempF( jsonF.getLong( "TempF" ) ) )
             .doOnTerminate( () -> fanControlSingle( false ).request().subscribe(
                     response -> { },  // successful OK response to fan shutoff
                     fanError -> { }// TODO: advise of possible emergency}
@@ -82,11 +84,11 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     // subscribe to the returned requester to turn fan on or off
     AsyncHTTPRequester fanControlSingle( boolean fanState ) {
         if( fanState ) {
-            appInstance.state.setFanState( true );
+            appInstance.appState.setFanState( true );
             return new AsyncHTTPRequester( FAN_ON_URL, client );
         }
         else {
-            appInstance.state.setFanState( false );
+            appInstance.appState.setFanState( false );
             return new AsyncHTTPRequester( FAN_OFF_URL, client );
         }
     }
@@ -102,11 +104,16 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         } else {
             fanURL = FAN_OFF_URL;
         }
-        appInstance.state.setFanState( fanState );
+        appInstance.appState.setFanState( fanState );  // need?
+        appInstance.pidState.setOutputOn( fanState );
         return new AsyncHTTPRequester( fanURL, eagerClient )
                 .request()
+                .observeOn( AndroidSchedulers.mainThread() )  // must use UI thread to show a Toast
                 .doOnError(
-                        fanError -> { }  // TODO: issue warning (Toast or whatever)
+                        fanError -> {
+                            Toast.makeText( appInstance, "Error controlling fan: " + fanError.getMessage(),
+                                    Toast.LENGTH_SHORT ).show();
+                        }  // TODO: issue warning (Toast or whatever; do we need UI thread?)
                 );
     }
     
@@ -119,7 +126,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         } else {
             fanURL = FAN_OFF_URL;
         }
-        appInstance.state.setFanState( fanState );
+        appInstance.appState.setFanState( fanState );
         return new AsyncHTTPRequester( fanURL, eagerClient )
                 .request()
                 .doOnError(

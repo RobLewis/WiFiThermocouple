@@ -2,41 +2,41 @@ package net.grlewis.wifithermocouple;
 
 interface PIDController {
     
-    
-    void set( float setPoint );
+    void set( float setPoint );  // set the setpoint
     Float getSetpoint();  // null if not set yet
     
     boolean start(); // return false if setpoint hasn't been set
     boolean stop();  // always shut off the heat
     boolean isRunning();
     
-    void reset();  // clear history etc.
+    boolean reset();  // clear history etc.
     boolean isReset();  // true after reset until settings set etc.
     
     float getError();  // current value - setPoint
     
-    boolean setPeriod( long ms );
+    boolean setPeriodMs( long ms );
+    Long getPeriodMs();
     
     
     // current value of the controlled variable
     void setCurrentVariableValue( float value );
-    float getCurrentVariableValue();
+    Float getCurrentVariableValue();
     
     // overall gain of the PID controller
     void setGain( float gain );
-    float getGain( );
+    Float getGain( );
     
     // proportional coefficient
     void setPropCoeff( float propCoeff );
-    float getProfCoeff( );
+    Float getPropCoeff( );
     
     // integral coefficient
     void setIntCoeff( float intCoeff );
-    float getIntCoeff( );
+    Float getIntCoeff( );
     
     // differential coefficient
     void setDiffCoeff( float diffCoeff );
-    float getDiffCoeff( );
+    Float getDiffCoeff( );
     
     //
     

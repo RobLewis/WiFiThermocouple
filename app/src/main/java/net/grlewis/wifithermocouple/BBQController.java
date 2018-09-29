@@ -1,171 +1,190 @@
 package net.grlewis.wifithermocouple;
 
+import android.app.Activity;
 import android.os.Handler;
+import android.util.Log;
 
 import static net.grlewis.wifithermocouple.Constants.MIN_OUTPUT_PCT;
-import static net.grlewis.wifithermocouple.Constants.PID_LOOP_INTERVAL_SECS;
 
 class BBQController implements PIDController {
     
     final static String TAG = BBQController.class.getSimpleName( );
     
-    final ThermocoupleApp appInstance;
+    private final ThermocoupleApp appInstance;
+    private final PIDState pidState;
+    private final TestActivity testActivity;
     
-    // PID parameters & variables
-    private volatile Float setPoint;  // null means uninitialized
-    private volatile Float currentVariableValue;  // current value of the temperature being controlled
-    private float previousVariableValue;
-    private volatile Float error;  // sign seems backwards but this is NI's convention
-    private volatile Float gain;
-    private volatile Float propCoeff;
-    private volatile Float intCoeff;
-    private volatile Float diffCoeff;
+    // PID parameters & variables are in pidState
     
     private float proportionalTerm;
     private float integralTerm;
     private boolean integralClamped;
     private float differentialTerm;
     private float outputPercent;
+    private float error;
     
-    private volatile boolean running;
-    private volatile Long periodMs;  // milliseconds between iterations
-    private volatile boolean reset;  // has a reset happened? (if true you can't actually run)
-    
-    
-    private Handler pidHandler = new Handler( );
-    private PIDLoopHandler pidLoopHandler = new PIDLoopHandler( );
+    private final Handler pidHandler;
+    private final PIDLoopRunnable pidLoopRunnable;
     
     
     // constructor
     BBQController( ) {
         appInstance = ThermocoupleApp.getSoleInstance();
-    }
+        pidState = appInstance.pidState;
+        testActivity = appInstance.testActivityRef;
+        pidHandler = new Handler( );
+        pidLoopRunnable = new PIDLoopRunnable( );    }
     
+    
+    
+    // INTERFACE IMPLEMENTATION  \\
     
     @Override  // OK
     public void set( float setPoint ) {  // TODO: guess it's OK to set it null to indicate uninitialized?
-        this.setPoint = setPoint;
-        reset = false;
+        pidState.set( setPoint );
+        pidState.setReset( false );      // TODO: can it run with just this value set?
     }
     
     @Override  // OK
     public Float getSetpoint( ) {  // null if not set yet
-        return setPoint;
+        return pidState.getSetPoint();
     }
     
     
-    @Override  // OK
+    @Override  //
     public boolean start( ) {  // return false if setpoint hasn't been set
-        if ( setPoint == null || reset || periodMs == null ) {  // TODO: other conditions
-            running = false;
+        if ( pidState.getSetPoint() == null || pidState.isReset() || pidState.getPeriodSecs() == null ) {  // TODO: other conditions
+            pidState.setEnabled( false );
             return false;
         }
-        running = true;
-        reset = false;
-        pidHandler.post( pidLoopHandler );  // start the loop
+        pidState.setEnabled( true );
+        pidState.setReset( false );
+        pidHandler.post( pidLoopRunnable );  // start the loop TODO: anything else needed before we start?
         return true;
     }
     
     @Override  // OK
     public boolean stop( ) {
-        pidHandler.removeCallbacks( pidLoopHandler );  // cancel any pending loop run
+        pidHandler.removeCallbacks( pidLoopRunnable );  // cancel any pending loop run
         appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe( );
-        running = false;
+        pidState.setEnabled( false );
         return true;
     }
     
     @Override  // OK
     public boolean isRunning( ) {
-        return running;
+        return pidState.isEnabled();
     }
     
     @Override  // OK
-    public void reset( ) {
-        reset = true;
-        setPoint = null;
+    public boolean reset( ) {
+        pidState.setReset( true );
+        pidState.set( null );  // null the setpoint
         stop();
+        return true;
     }
     
     @Override  // OK
     public boolean isReset( ) {
-        return reset;
+        return pidState.isReset();
     }
     
     @Override  // OK
     public float getError( ) {  // current value - setPoint
-        return  error;
+        return  pidState.getCurrentVariableValue() - pidState.getSetPoint();
     }
     
     
     
     @Override  // OK
-    public boolean setPeriod( long ms ) {
-        periodMs = ms;
+    public boolean setPeriodMs( long ms ) {  // in pidState is stored as a Float seconds
+        pidState.setPeriodSecs( ms/1000f );
         return true;
     }
-    
+    @Override  // OK
+    public Long getPeriodMs( ) {
+        return Long.valueOf( Math.round( pidState.getPeriodSecs()*1000d ) );
+    }  // rounding double returns long
     
     
     // current value of the controlled variable
     public void setCurrentVariableValue( float value ) {
-        currentVariableValue = value;
+        pidState.setCurrentVariableValue( value );
     }
-    public float getCurrentVariableValue() { return currentVariableValue; }
+    public Float getCurrentVariableValue() { return pidState.getCurrentVariableValue(); }
     
     // overall gain of the PID controller
     public void setGain( float gain ) {
-        this.gain = gain;
+        pidState.setGain( gain );
     }
-    public float getGain( ){ return gain; }
+    public Float getGain( ){ return pidState.getGain(); }
     
     // proportional coefficient
     public void setPropCoeff( float propCoeff ) {
-        this.propCoeff = propCoeff;
+        pidState.setPropCoeff( propCoeff );
     }
-    public float getProfCoeff( ) { return propCoeff; }
+    public Float getPropCoeff( ) { return pidState.getPropCoeff(); }
     
     // integral coefficient
     public void setIntCoeff( float intCoeff ) {
-        this.intCoeff = intCoeff;
+        pidState.setIntCoeff( intCoeff );
     }
-    public float getIntCoeff( ) { return intCoeff; }
+    public Float getIntCoeff( ) { return pidState.getIntCoeff(); }
     
     // differential coefficient
     public void setDiffCoeff( float diffCoeff ) {
-        this.diffCoeff = diffCoeff;
+        pidState.setDiffCoeff( diffCoeff );
     }
-    public float getDiffCoeff( ) { return diffCoeff; }
+    public Float getDiffCoeff( ) { return pidState.getDiffCoeff(); }
+    
+    
+    // END OF INTERFACE IMPLEMENTATION  \\
     
     
     
     
     
     
-    
-    class PIDLoopHandler implements Runnable {
+    class PIDLoopRunnable implements Runnable {
+        
+        final String TAG = PIDLoopRunnable.class.getSimpleName(); 
         
         public void run() {
             
-            if( isRunning() ) {
-                pidHandler.postDelayed( this, PID_LOOP_INTERVAL_SECS * 1000L );  // schedule next loop run
+            Log.d( TAG, "Entering PID Control Loop" );
+            
+            if( pidState.isEnabled() ) {
+                // schedule next loop run
+                pidHandler.postDelayed( this, Math.round( pidState.getPeriodSecs() * 1000d ) );  // rounding double returns long
                 
-                error = setPoint - currentVariableValue;  // odd choice of sign
-                proportionalTerm = error * propCoeff;
-                if( !integralClamped ) {
-                    integralTerm += error * intCoeff;
+                //error = setPoint - currentVariableValue;  // odd choice of sign
+                error = pidState.getSetPoint() - pidState.getCurrentVariableValue();
+                proportionalTerm = error * pidState.getPropCoeff();
+                if( !pidState.intIsClamped() ) {
+                    integralTerm += error * pidState.getIntCoeff();
                 }
-                differentialTerm = ( currentVariableValue - previousVariableValue ) * diffCoeff;
-                previousVariableValue = currentVariableValue;
-                outputPercent = gain * ( proportionalTerm + integralTerm - differentialTerm );  // percent (duty cycle) of full-on heater
-                integralClamped = (outputPercent > 100f || outputPercent < 0f) && (integralTerm * error > 0f);  // out of range & same sign?
+                differentialTerm = ( pidState.getCurrentVariableValue() - pidState.getPreviousVariableValue() )
+                        * pidState.getDiffCoeff();
+                pidState.setPreviousVariableValue( pidState.getCurrentVariableValue() );
+                
+                outputPercent = pidState.getGain() * (proportionalTerm + integralTerm - differentialTerm);
+                
+                pidState.setIntClamped( (outputPercent > 100f || outputPercent < 0f) && (integralTerm * error > 0f) );
+                
                 outputPercent = outputPercent < 0f? 0f : outputPercent;
                 outputPercent = outputPercent > 100f? 100f : outputPercent;
+                pidState.setCurrentPctg( outputPercent );
+                
                 if( outputPercent >= MIN_OUTPUT_PCT ) {
-                    pidHandler.post( () -> appInstance.wifiCommunicator.fanControlWithWarning( true ).subscribe() );
-                    pidHandler.postDelayed( () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(),
-                            (long)(PID_LOOP_INTERVAL_SECS * 1000f * outputPercent/100f) );
+                    pidHandler.post( () ->  appInstance.wifiCommunicator.fanControlWithWarning( true ).subscribe(
+                            response -> testActivity.fanButtonTextPublisher.onNext( "PID TURNED FAN ON" )
+                    ) );
+                    pidHandler.postDelayed( () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
+                            response -> testActivity.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
+                            ),
+                            (long)(pidState.getPeriodSecs() * 1000f * outputPercent/100f) );
                 }
-            }
+            }  // if enabled
         }  // .run()
     }  // PID loop Runnable
     

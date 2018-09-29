@@ -12,7 +12,7 @@ class ApplicationState
     
     // instance variables
     
-    // state of the peripheral device & firmware (initially null)
+    // appState of the peripheral device & firmware (initially null)
     private Float currentTempF;           // last temperature reading from the thermocouple
     private Float currentTempC;           // converted/synced to/from C/F as needed
     private Float lastCurrentSeconds;     // last elapsed seconds (since startup) read from the peripheral's clock (0.1 sec resolution)
@@ -30,7 +30,7 @@ class ApplicationState
     private String swVersion;             // software version read from device
     
     
-    // state of the PID BBQ controller (this app's, not the peripheral's internal one, if any)
+    // appState of the PID BBQ controller (this app's, not the peripheral's internal one, if any)
     private boolean pidEnabled;
     
     
@@ -62,7 +62,7 @@ class ApplicationState
     
     
     
-    // Note these methods merely record and report the state of the app variables; they do nothing to bring it about
+    // Note these methods merely record and report the appState of the app variables; they do nothing to bring it about
     
     
     public  float getCurrentTempF( ) {
