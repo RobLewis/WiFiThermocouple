@@ -23,6 +23,7 @@ import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.BehaviorSubject;
 import io.reactivex.subjects.Subject;
+import okhttp3.Response;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
@@ -53,6 +54,7 @@ public class TestActivity extends AppCompatActivity {
     Disposable tempButtonTextDisposable;
     Disposable tempFUpdaterDisposable;  // periodic updates
     Disposable pidButtonTextDisposable;
+    Disposable watchdogResetDisposable;
     
     Subject<String> fanButtonTextPublisher;   // called to emit text to be displayed by fan state button (or other subs)
     Subject<String> tempButtonTextPublisher;  // called to emit text to be displayed by temp update button (or other subs)
@@ -83,6 +85,7 @@ public class TestActivity extends AppCompatActivity {
         pidToggleObservable = RxCompoundButton.checkedChanges( togglePIDButton );
         tempUpdateObservable = RxView.clicks( updateTempButton );
         tempSliderObservable = RxSeekBar.changes( tempSlider );
+        
         
         // BehaviorSubject emits its last observed value plus future values to each new subscriber
         // .toSerialized() converts any kind of Subject to a plain Subject (see above declarations)
@@ -148,6 +151,13 @@ public class TestActivity extends AppCompatActivity {
         
         setTempButton.setText( "CURRENT TEMP SETTING: " + appInstance.pidState.getSetPoint().toString() + "°F" );
         //appInstance.bbqController.start();  // don't start ON
+        
+        appInstance.wifiCommunicator.watchdogEnableSingle.request().subscribe(
+                resp -> { if( DEBUG ) Log.d( TAG, "Watchdog timer enabled" ); }
+        );  // enable the watchdog timer TODO: make sure it worked
+        watchdogResetDisposable = appInstance.wifiCommunicator.watchdogResetObservable.subscribe(
+                resp -> { if( DEBUG ) Log.d( TAG, "Watchdog timer reset" ); }
+        );  // start resetting watchdog timer periodically
         
         if( DEBUG ) Log.d( TAG, "Exiting onStart()" );
     }
@@ -241,6 +251,7 @@ public class TestActivity extends AppCompatActivity {
     @Override
     protected void onStop( ) {
         tempFUpdaterDisposable.dispose();  // turn off periodic temp updates
+        watchdogResetDisposable.dispose(); // stop resetting watchdog timer
         super.onStop( );
     }
 }

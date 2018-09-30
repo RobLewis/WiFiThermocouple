@@ -16,9 +16,11 @@ import io.reactivex.disposables.Disposable;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
+import static net.grlewis.wifithermocouple.Constants.ENABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_CONTROL_TIMEOUT_SECS;
 import static net.grlewis.wifithermocouple.Constants.FAN_OFF_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_ON_URL;
+import static net.grlewis.wifithermocouple.Constants.RESET_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.SOFTWARE_VERSION;
 import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
@@ -97,6 +99,17 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
             return new AsyncHTTPRequester( FAN_OFF_URL, client );
         }
     }
+    
+    
+    AsyncHTTPRequester watchdogEnableSingle = new AsyncHTTPRequester( ENABLE_WD_URL, client );
+    AsyncHTTPRequester watchdogResetSingle = new AsyncHTTPRequester( RESET_WD_URL, client );
+    
+    // subscribe to enable the periodic reset of the watchdog timer
+    Observable<Response> watchdogResetObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )  // 40
+            .startWith( -1L )  // kick it off right away
+            .flatMapSingle( resetNow -> watchdogResetSingle.request() );
+    
+    
     
     
     
