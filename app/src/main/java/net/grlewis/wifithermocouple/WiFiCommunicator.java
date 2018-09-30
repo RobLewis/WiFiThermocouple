@@ -109,11 +109,12 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         } else {
             fanURL = FAN_OFF_URL;
         }
-        appInstance.appState.setFanState( fanState );  // need?
-        appInstance.pidState.setOutputOn( fanState );
+        //appInstance.appState.setFanState( fanState );  // need?
+        //appInstance.pidState.setOutputOn( fanState );
         return new AsyncHTTPRequester( fanURL, eagerClient )
                 .request()
                 .observeOn( AndroidSchedulers.mainThread() )  // must use UI thread to show a Toast
+                .doOnSuccess( response -> appInstance.pidState.setOutputOn( fanState ) )
                 .doOnError(
                         fanError -> {
                             Toast.makeText( appInstance, "Error controlling fan: " + fanError.getMessage(),

@@ -2,7 +2,7 @@ package net.grlewis.wifithermocouple;
 
 interface PIDController {
     
-    void set( float setPoint );  // set the setpoint
+    void set( Float setPoint );  // set the setpoint (wrapper object enables a null value)
     Float getSetpoint();  // null if not set yet
     
     boolean start(); // return false if setpoint hasn't been set
@@ -12,7 +12,7 @@ interface PIDController {
     boolean reset();  // clear history etc.
     boolean isReset();  // true after reset until settings set etc.
     
-    float getError();  // current value - setPoint
+    float getError();  // setPoint - current value (odd choice of sign, but it's NI's convention)
     
     boolean setPeriodMs( long ms );
     Long getPeriodMs();
@@ -38,8 +38,9 @@ interface PIDController {
     void setDiffCoeff( float diffCoeff );
     Float getDiffCoeff( );
     
-    //
-    
+    // minimum control % (less than this ignored in controlled output)
+    void setMinOutPctg( Float pctg );
+    Float getMinOutPctg( );
     
     
     

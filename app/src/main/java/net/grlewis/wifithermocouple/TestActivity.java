@@ -1,5 +1,6 @@
 package net.grlewis.wifithermocouple;
 
+import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -50,9 +51,11 @@ public class TestActivity extends AppCompatActivity {
     Disposable fanButtonTextDisposable;
     Disposable tempButtonTextDisposable;
     Disposable tempFUpdaterDisposable;  // periodic updates
+    Disposable pidButtonTextDisposable;
     
     Subject<String> fanButtonTextPublisher;   // called to emit text to be displayed by fan state button (or other subs)
     Subject<String> tempButtonTextPublisher;  // called to emit text to be displayed by temp update button (or other subs)
+    Subject<String> pidButtonTextPublisher;   // called to emit text to be displayed by PID enable/disable button (or other subs)
     
     
     @Override
@@ -62,13 +65,13 @@ public class TestActivity extends AppCompatActivity {
         
         super.onCreate( savedInstanceState );
         setContentView( R.layout.activity_test );
-        Toolbar toolbar = (Toolbar) findViewById( R.id.toolbar );
+        Toolbar toolbar = (Toolbar) findViewById( R.id.toolbar );  // TODO: use?
         setSupportActionBar( toolbar );
         
         appInstance = ThermocoupleApp.getSoleInstance();
         appInstance.setTestActivityRef( this );  // install a reference to this activity in main App
+        appInstance.bbqController.setTestActivityRef( this );  // TODO: need?
         
-        appInstance.bbqController.setTestActivityRef( this );
         updateTempButton = (Button) findViewById( R.id.temp_button );
         toggleFanButton = (ToggleButton) findViewById( R.id.fan_button );
         tempSlider = (SeekBar) findViewById( R.id.temp_slider );
@@ -80,13 +83,11 @@ public class TestActivity extends AppCompatActivity {
         tempUpdateObservable = RxView.clicks( updateTempButton );
         tempSliderObservable = RxSeekBar.changes( tempSlider );
         
+        // BehaviorSubject emits its last observed value plus future values to each new subscriber
+        // .toSerialized() converts any kind of Subject to a plain Subject (see above declarations)
         fanButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
         tempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
-        
-        
-        
-        
-        
+        pidButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
         
         
         FloatingActionButton fab = (FloatingActionButton) findViewById( R.id.fab );
@@ -97,48 +98,53 @@ public class TestActivity extends AppCompatActivity {
                         .setAction( "Action", null ).show( );
             }
         } );
+        
         if( DEBUG ) Log.d( TAG, "Exiting onCreate()" );
     }  // onCreate
     
     
     @Override
+    @SuppressLint( "CheckResult" )  // suppress "result of subscribe is not used" warnings
     protected void onStart( ) {
         
         if( DEBUG ) Log.d( TAG, "Entering onStart()" );
         
         super.onStart( );
         
-        float startingSetpoint = appInstance.pidState.getSetPoint();
-        setTempButton.setText( "INITIAL TEMP SETTING: " + startingSetpoint );
+        float startingSetpoint = appInstance.pidState.getSetPoint();  // DEFAULT_SETPOINT constant
+        tempButtonTextPublisher.onNext( "INITIAL TEMP SETTING: " + startingSetpoint );
+        //setTempButton.setText( "INITIAL TEMP SETTING: " + startingSetpoint );
         tempSlider.setProgress( Math.round( appInstance.pidState.getSetPoint() ) );
         
         // set initial appState
         appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe( httpResponse -> {
-                    toggleFanButton.setText( "FAN IS INITIALLY OFF" );
+                    //toggleFanButton.setText( "FAN IS INITIALLY OFF" );
+                    fanButtonTextPublisher.onNext( "FAN IS INITIALLY OFF" );
                     appInstance.appState.setFanState( false );  // TODO: need?
-                    appInstance.pidState.setOutputOn( false );
-                } );
+                    appInstance.pidState.setOutputOn( false );  // TODO: doesn't fanControlWithWarning take care of this?
+                } );  // TODO: think we need error handler
         
         appInstance.wifiCommunicator.tempFGetter.get()
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe( tempJSON -> {
                             float tempF = (float)tempJSON.getDouble( "TempF" );
-                            updateTempButton.setText( "INITIAL READING: " + String.valueOf( tempF ) + "°F" );
+                            //updateTempButton.setText( "INITIAL READING: " + String.valueOf( tempF ) + "°F" );
+                            tempButtonTextPublisher.onNext( "INITIAL READING: " + String.valueOf( tempF ) + "°F" );
                             appInstance.appState.setCurrentTempF( tempF );  // TODO: need?
                             appInstance.pidState.setCurrentVariableValue( tempF );
                         }
                 );
+        
         tempFUpdaterDisposable = appInstance.wifiCommunicator.tempFUpdater.subscribe();
-        appInstance.appState.enablePid( false );  // TODO: need?
+        //appInstance.appState.enablePid( false );  // TODO: need?
         togglePIDButton.setText( "PID IS INITIALLY DISABLED:" );
         
         setTempButton.setText( "CURRENT TEMP SETTING: " + appInstance.pidState.getSetPoint().toString() + "°F" );
+        //appInstance.bbqController.start();  // don't start ON
         
-        appInstance.bbqController.start();
         if( DEBUG ) Log.d( TAG, "Exiting onStart()" );
-        
     }
     
     @Override
@@ -158,18 +164,21 @@ public class TestActivity extends AppCompatActivity {
                 },
                 fanToggleErr -> {}  // TODO (but note we get a warning)
         );
-        pidToggleDisposable = pidToggleObservable
+        pidToggleDisposable = pidToggleObservable  // click events for toggle button to enable/disable PID
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         newPidState -> {
-                            appInstance.appState.enablePid( newPidState );  // TODO: need? (just sets appState.pidEnabled)
+                            //appInstance.appState.enablePid( newPidState );  // TODO: need? (just sets appState.pidEnabled)
                             appInstance.pidState.setEnabled( newPidState );
-                            togglePIDButton.setText( newPidState? "PID IS ENABLED" : "PID IS DISABLED" );
                             if( newPidState ) {  // enable the PID
                                 appInstance.bbqController.start();
+                                pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped()?
+                                        "PID is enabled (clamped)" : "PID is enabled" );
                                 if( DEBUG ) Log.d( TAG, "Attempting to start PID" );
                             } else {  // disable the PID
                                 appInstance.bbqController.stop();
+                                pidButtonTextPublisher.onNext( "PID is disabled" );
+                                fanButtonTextPublisher.onNext( "PID turned fan off" );
                                 if( DEBUG ) Log.d( TAG, "Attempting to stop PID" );
                             }
                         },
@@ -197,6 +206,11 @@ public class TestActivity extends AppCompatActivity {
                 .subscribe(
                         buttonText -> updateTempButton.setText( buttonText ),
                         buttTextErr -> Log.d( TAG, "Error trying to receive tempButton text update", buttTextErr )
+                );
+        pidToggleDisposable = pidButtonTextPublisher
+                .observeOn( AndroidSchedulers.mainThread() )
+                .subscribe(
+                        buttonText -> togglePIDButton.setText( buttonText )
                 );
         
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );

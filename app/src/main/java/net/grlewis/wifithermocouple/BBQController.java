@@ -3,8 +3,6 @@ package net.grlewis.wifithermocouple;
 import android.os.Handler;
 import android.util.Log;
 
-import junit.framework.Test;
-
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 import static net.grlewis.wifithermocouple.Constants.DEFAULT_SETPOINT;
 import static net.grlewis.wifithermocouple.Constants.MIN_OUTPUT_PCT;
@@ -48,7 +46,7 @@ class BBQController implements PIDController {
     // INTERFACE IMPLEMENTATION  \\
     
     @Override  // OK
-    public void set( float setPoint ) {  // TODO: guess it's OK to set it null to indicate uninitialized?
+    public void set( Float setPoint ) {  // set it null to indicate uninitialized?
         pidState.set( setPoint );
         pidState.setReset( false );      // TODO: can it run with just this value set?
     }
@@ -60,7 +58,7 @@ class BBQController implements PIDController {
     
     
     @Override  //
-    public boolean start( ) {  // return false if setpoint hasn't been set
+    public synchronized boolean start( ) {  // return false if setpoint hasn't been set
         if ( pidState.getSetPoint() == null /*|| pidState.isReset()*/ || pidState.getPeriodSecs() == null ) {  // TODO: other conditions
             pidState.setEnabled( false );
             if( DEBUG ) Log.d( TAG, "Can't start PID" );
@@ -70,13 +68,14 @@ class BBQController implements PIDController {
         pidState.setReset( false );
         pidState.setIntClamped( false );
         pidState.setIntAccum( 0f );
+        pidState.setPreviousVariableValue( 0f );  // TODO: right?
         pidHandler.post( pidLoopRunnable );  // start the loop TODO: anything else needed before we start?
         if( DEBUG ) Log.d( TAG, "start() completed successfully(?)" );
         return true;
     }
     
     @Override  // OK
-    public boolean stop( ) {
+    public synchronized boolean stop( ) {
         pidHandler.removeCallbacks( pidLoopRunnable );  // cancel any pending loop run
         appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe( );
         pidState.setEnabled( false );
@@ -84,16 +83,17 @@ class BBQController implements PIDController {
     }
     
     @Override  // OK
-    public boolean isRunning( ) {
+    public synchronized boolean isRunning( ) {
         return pidState.isEnabled();
     }
     
     @Override  // OK
-    public boolean reset( ) {
+    public synchronized boolean reset( ) {
         pidState.setReset( true );
-        pidState.set( null );  // null the setpoint
-        stop();
-        return true;
+        //pidState.set( null );  // null the setpoint TODO: ?
+        pidState.setIntClamped( false );
+        pidState.setIntAccum( 0f );
+        return stop();
     }
     
     @Override  // OK
@@ -102,10 +102,9 @@ class BBQController implements PIDController {
     }
     
     @Override  // OK
-    public float getError( ) {  // current value - setPoint
-        return  pidState.getCurrentVariableValue() - pidState.getSetPoint();
+    public float getError( ) {  // current value - setPoint (no need to use a wrapper)
+        return  pidState.getSetPoint() - pidState.getCurrentVariableValue();  // NI's odd choice of sign
     }
-    
     
     
     @Override  // OK
@@ -149,6 +148,17 @@ class BBQController implements PIDController {
     }
     public Float getDiffCoeff( ) { return pidState.getDiffCoeff(); }
     
+    // minimum controlled output %
+    
+    @Override
+    public void setMinOutPctg( Float pctg ) {
+        pidState.setMinOutPctg( pctg );
+    }
+    @Override
+    public Float getMinOutPctg( ) {
+        return pidState.getMinOutPctg();
+    }
+    
     
     // END OF INTERFACE IMPLEMENTATION  \\
     
@@ -170,8 +180,7 @@ class BBQController implements PIDController {
                 // schedule next loop run
                 pidHandler.postDelayed( this, Math.round( pidState.getPeriodSecs() * 1000d ) );  // rounding double returns long
                 
-                //error = setPoint - currentVariableValue;  // odd choice of sign
-                error = pidState.getSetPoint() - pidState.getCurrentVariableValue();
+                error = BBQController.this.getError();  // odd choice of error sign  ('BBQController.this' isn't really needed)
                 proportionalTerm = error * pidState.getPropCoeff();
                 if( !pidState.intIsClamped() ) {
                     integralTerm += error * pidState.getIntCoeff();
@@ -182,7 +191,10 @@ class BBQController implements PIDController {
                 
                 outputPercent = pidState.getGain() * (proportionalTerm + integralTerm - differentialTerm);
                 
-                pidState.setIntClamped( (outputPercent > 100f || outputPercent < 0f) && (integralTerm * error > 0f) );
+                // clamped if output is out of range and the integral term and error have the same sign
+                pidState.setIntClamped( (outputPercent > 100f || outputPercent < 0f) && ( (integralTerm * error) > 0f) );
+                appInstance.testActivityRef.pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped()?
+                        "PID is enabled (clamped)" : "PID is enabled" );
                 
                 outputPercent = outputPercent < 0f? 0f : outputPercent;
                 outputPercent = outputPercent > 100f? 100f : outputPercent;
@@ -200,7 +212,9 @@ class BBQController implements PIDController {
                     pidHandler.post( () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
                             response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" ) ) );
                 }
-            }  // if enabled
+            }  else { // disabled
+                appInstance.testActivityRef.pidButtonTextPublisher.onNext( "PID is disabled" );
+            }
             if( DEBUG ) Log.d( TAG, "Exiting PID Control Loop with outputPercent = " + outputPercent );
         }  // .run()
     }  // PID loop Runnable

@@ -21,11 +21,12 @@ class PIDState implements Cloneable {  // TODO: cloneable?
     private Boolean enabled;     // is the PID enabled?
     private Boolean reset;       // has it been reset?
     private Boolean outputOn;    // is the fan, heater, whatever currently on?
+    private Float minOutPct;     // the minimum controlled output percentage that will cause turnon
     
     
     // constructor
     PIDState() {
-        setPoint = null;  // can't run if we haven't defined this
+        setPoint = DEFAULT_SETPOINT;  // can't run if we haven't defined this
         currentVariableValue = 0f;
         previousVariableValue = 0f;
         gain = DEFAULT_GAIN;
@@ -38,6 +39,8 @@ class PIDState implements Cloneable {  // TODO: cloneable?
         periodSecs = DEFAULT_PERIOD_SECS;
         enabled = false;
         reset = true;
+        outputOn = false;
+        minOutPct = DEFAULT_MIN_OUT_PCT;
     }
     
     
@@ -161,12 +164,18 @@ class PIDState implements Cloneable {  // TODO: cloneable?
     
     
     // whether the output device (fan, heater, etc.) is currently on or off
-    public Boolean outputIsOn( ) {return outputOn; }
+    public Boolean outputIsOn( ) { return outputOn; }
     public void setOutputOn( Boolean outOn ) {
         this.outputOn = outOn;
     }
     
+    public Float getMinOutPctg( ) {
+        return minOutPct;
+    }
     
+    public void setMinOutPctg( Float minOutPct ) {
+        this.minOutPct = minOutPct;
+    }
     
     @Override  // TODO: serialize before storing?
     protected PIDState clone( ) throws CloneNotSupportedException {
