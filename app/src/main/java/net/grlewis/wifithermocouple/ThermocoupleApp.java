@@ -2,6 +2,9 @@ package net.grlewis.wifithermocouple;
 
 import android.app.Activity;
 import android.app.Application;
+import android.util.Log;
+
+import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
 
 /*
@@ -30,30 +33,32 @@ import android.app.Application;
 
 public class ThermocoupleApp extends Application {
     
+    static final String TAG = ThermocoupleApp.class.getSimpleName();
+    
     private static ThermocoupleApp sAppInstance;  // the Singleton instance of this Application
     
     // Application Globals (instance variables of the Singleton)
     WiFiCommunicator wifiCommunicator;
     ApplicationState appState;
     PIDState pidState;
-    
-    TestActivity testActivityRef;
     BBQController bbqController;
     
-    
-    
+    TestActivity testActivityRef;
     
     
     // retrieve the app instance to request access to its instance variables
     public static ThermocoupleApp getSoleInstance() { return sAppInstance; } // can use this to retrieve e.g. the sole rxBleClient
     
-    //public RxBleClient getRxBleClient() { return rxBleClient; }  // instance method
-    
     @Override
     public void onCreate() {
+        
+        if( DEBUG ) Log.d( TAG, "Entering onCreate()");
+        
         super.onCreate( );
         sAppInstance = this;  // the created App instance stores a reference to itself in the static variable
         sAppInstance.initialize();
+    
+        if( DEBUG ) Log.d( TAG, "Exiting onCreate()");
     }
     
     protected void initialize() {
@@ -63,12 +68,9 @@ public class ThermocoupleApp extends Application {
         appState = new ApplicationState();
         pidState = new PIDState();
         bbqController = new BBQController();
-    
-    
-    
     }
     
-    void setTestActivityRef( TestActivity testActivity ) { testActivityRef = testActivity; }
     
+    void setTestActivityRef( TestActivity testActivity ) { testActivityRef = testActivity; }
     
 }

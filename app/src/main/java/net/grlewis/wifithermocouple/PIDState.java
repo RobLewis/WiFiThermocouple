@@ -25,9 +25,9 @@ class PIDState implements Cloneable {  // TODO: cloneable?
     
     // constructor
     PIDState() {
-        setPoint = DEFAULT_SETPOINT;
-        currentVariableValue = null;
-        previousVariableValue = null;
+        setPoint = null;  // can't run if we haven't defined this
+        currentVariableValue = 0f;
+        previousVariableValue = 0f;
         gain = DEFAULT_GAIN;
         propCoeff = DEFAULT_PROP_COEFF;
         intCoeff = DEFAULT_INT_COEFF;

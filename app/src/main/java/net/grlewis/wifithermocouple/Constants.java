@@ -10,6 +10,10 @@ import java.net.URL;
 
 final class Constants {
     
+    static final String TAG = Constants.class.getSimpleName();
+    
+    static boolean DEBUG = true;
+    
     // URLs to control the device
     
     private static final String urlRoot = "http://wifitempsensor.lan/";
@@ -83,7 +87,7 @@ final class Constants {
             READ_ANALOG_URL     = new URL( urlRoot + readAnalog );
             GET_INFO_URL        = new URL( urlRoot + getInfo );
     
-            DEFAULT_TEMP_F = new JSONObject( "\"TempF\":-999" );
+            DEFAULT_TEMP_F = new JSONObject( "{\"TempF\":-999}" );
     
         }
         catch( MalformedURLException m) {
@@ -107,9 +111,9 @@ final class Constants {
     // New, for PIDState constructor
     static final float DEFAULT_SETPOINT = 250f;    // TODO: consider °F or °C?
     static final float DEFAULT_GAIN = 5f;          // TODO: value?
-    static final float DEFAULT_PROP_COEFF = 1f;    // TODO: value?
-    static final float DEFAULT_INT_COEFF = 1f;     // TODO: value?
-    static final float DEFAULT_DIFF_COEFF = 1f;    // TODO: value?
+    static final float DEFAULT_PROP_COEFF = 16f;   // TODO: value? from AppleScript
+    static final float DEFAULT_INT_COEFF = 2f;     // TODO: value?
+    static final float DEFAULT_DIFF_COEFF = 3f;    // TODO: value?
     static final float DEFAULT_PERIOD_SECS = 10f;  // TODO: value?
     
     

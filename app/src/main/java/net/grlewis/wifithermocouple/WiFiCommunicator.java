@@ -19,6 +19,7 @@ import okhttp3.Response;
 import static net.grlewis.wifithermocouple.Constants.FAN_CONTROL_TIMEOUT_SECS;
 import static net.grlewis.wifithermocouple.Constants.FAN_OFF_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_ON_URL;
+import static net.grlewis.wifithermocouple.Constants.SOFTWARE_VERSION;
 import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
 import static net.grlewis.wifithermocouple.Constants.WATCHDOG_CHECK_SECONDS;
@@ -65,7 +66,11 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     // note AsyncJSONGetter is a Single; this combines the series of Single outputs into an Observable stream
     Observable<JSONObject> tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )
             .flatMapSingle( getTempFNow -> tempFGetter.get() )  // combines outputs of Singles into an Observable stream
-            .doOnNext( jsonF -> appInstance.appState.setCurrentTempF( jsonF.getLong( "TempF" ) ) )
+            .doOnNext( jsonF -> {
+                appInstance.pidState.setCurrentVariableValue( (float)(jsonF.getDouble( "TempF" ) ) );
+                appInstance.testActivityRef.tempButtonTextPublisher.onNext( "tempFUpdater set new value: "
+                        + String.valueOf( jsonF.getDouble( "TempF" ) ) );
+            } )
             .doOnTerminate( () -> fanControlSingle( false ).request().subscribe(
                     response -> { },  // successful OK response to fan shutoff
                     fanError -> { }// TODO: advise of possible emergency}

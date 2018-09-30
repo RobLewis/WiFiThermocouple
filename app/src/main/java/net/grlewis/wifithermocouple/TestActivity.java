@@ -5,6 +5,7 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.SeekBar;
@@ -19,8 +20,13 @@ import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.BehaviorSubject;
+import io.reactivex.subjects.Subject;
+
+import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
 public class TestActivity extends AppCompatActivity {
+    
+    static final String TAG = TestActivity.class.getSimpleName();
     
     ThermocoupleApp appInstance;
     
@@ -42,12 +48,18 @@ public class TestActivity extends AppCompatActivity {
     Disposable tempSetDisposable;
     Disposable tempSliderDisposable;
     Disposable fanButtonTextDisposable;
+    Disposable tempButtonTextDisposable;
+    Disposable tempFUpdaterDisposable;  // periodic updates
     
-    BehaviorSubject<String> fanButtonTextPublisher;  // called to emit text to be displayed by fan state button (or other subs)
+    Subject<String> fanButtonTextPublisher;   // called to emit text to be displayed by fan state button (or other subs)
+    Subject<String> tempButtonTextPublisher;  // called to emit text to be displayed by temp update button (or other subs)
     
     
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
+        
+        if( DEBUG ) Log.d( TAG, "Entering onCreate()" );
+        
         super.onCreate( savedInstanceState );
         setContentView( R.layout.activity_test );
         Toolbar toolbar = (Toolbar) findViewById( R.id.toolbar );
@@ -56,6 +68,7 @@ public class TestActivity extends AppCompatActivity {
         appInstance = ThermocoupleApp.getSoleInstance();
         appInstance.setTestActivityRef( this );  // install a reference to this activity in main App
         
+        appInstance.bbqController.setTestActivityRef( this );
         updateTempButton = (Button) findViewById( R.id.temp_button );
         toggleFanButton = (ToggleButton) findViewById( R.id.fan_button );
         tempSlider = (SeekBar) findViewById( R.id.temp_slider );
@@ -67,7 +80,8 @@ public class TestActivity extends AppCompatActivity {
         tempUpdateObservable = RxView.clicks( updateTempButton );
         tempSliderObservable = RxSeekBar.changes( tempSlider );
         
-        fanButtonTextPublisher = BehaviorSubject.create();
+        fanButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
+        tempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
         
         
         
@@ -83,12 +97,21 @@ public class TestActivity extends AppCompatActivity {
                         .setAction( "Action", null ).show( );
             }
         } );
+        if( DEBUG ) Log.d( TAG, "Exiting onCreate()" );
     }  // onCreate
     
     
     @Override
     protected void onStart( ) {
+        
+        if( DEBUG ) Log.d( TAG, "Entering onStart()" );
+        
         super.onStart( );
+        
+        float startingSetpoint = appInstance.pidState.getSetPoint();
+        setTempButton.setText( "INITIAL TEMP SETTING: " + startingSetpoint );
+        tempSlider.setProgress( Math.round( appInstance.pidState.getSetPoint() ) );
+        
         // set initial appState
         appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off
                 .observeOn( AndroidSchedulers.mainThread() )
@@ -107,14 +130,22 @@ public class TestActivity extends AppCompatActivity {
                             appInstance.pidState.setCurrentVariableValue( tempF );
                         }
                 );
+        tempFUpdaterDisposable = appInstance.wifiCommunicator.tempFUpdater.subscribe();
         appInstance.appState.enablePid( false );  // TODO: need?
         togglePIDButton.setText( "PID IS INITIALLY DISABLED:" );
         
+        setTempButton.setText( "CURRENT TEMP SETTING: " + appInstance.pidState.getSetPoint().toString() + "°F" );
+        
         appInstance.bbqController.start();
+        if( DEBUG ) Log.d( TAG, "Exiting onStart()" );
+        
     }
     
     @Override
     protected void onResume( ) {
+        
+        if( DEBUG ) Log.d( TAG, "Entering onResume()" );
+        
         super.onResume( );
         
         fanToggleDisposable = fanToggleObservable.subscribe(
@@ -131,11 +162,19 @@ public class TestActivity extends AppCompatActivity {
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         newPidState -> {
-                            appInstance.appState.enablePid( newPidState );  // TODO: need?
+                            appInstance.appState.enablePid( newPidState );  // TODO: need? (just sets appState.pidEnabled)
                             appInstance.pidState.setEnabled( newPidState );
                             togglePIDButton.setText( newPidState? "PID IS ENABLED" : "PID IS DISABLED" );
+                            if( newPidState ) {  // enable the PID
+                                appInstance.bbqController.start();
+                                if( DEBUG ) Log.d( TAG, "Attempting to start PID" );
+                            } else {  // disable the PID
+                                appInstance.bbqController.stop();
+                                if( DEBUG ) Log.d( TAG, "Attempting to stop PID" );
+                            }
                         },
-                        pidToggleErr -> {}  // TODO
+                        pidToggleErr -> { Log.d( TAG, "Error with pidToggleObservable: "
+                                + pidToggleErr.getMessage(), pidToggleErr );}  // TODO
                 );
         tempUpdateDisposable = tempUpdateObservable.subscribe(
                 click -> appInstance.wifiCommunicator.tempFGetter.get()
@@ -153,17 +192,36 @@ public class TestActivity extends AppCompatActivity {
         fanButtonTextDisposable = fanButtonTextPublisher.subscribe(
                 buttonText -> toggleFanButton.setText( buttonText )
         );
+        tempButtonTextDisposable = tempButtonTextPublisher
+                .observeOn( AndroidSchedulers.mainThread() )  // else can't touch UI
+                .subscribe(
+                        buttonText -> updateTempButton.setText( buttonText ),
+                        buttTextErr -> Log.d( TAG, "Error trying to receive tempButton text update", buttTextErr )
+                );
+        
+        if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
         
     }  // onResume
     
     
     @Override
     protected void onPause( ) {
-        fanToggleDisposable.dispose();  // TODO: combine these into a Composite Disposable
+        if( DEBUG ) Log.d( TAG, "Entering onPause()" );
+        
+        fanToggleDisposable.dispose();   // TODO: combine these into a Composite Disposable
         pidToggleDisposable.dispose();
-        tempUpdateDisposable.dispose();
+        tempUpdateDisposable.dispose();  // listener for clicks on temp button
         tempSliderDisposable.dispose();
         fanButtonTextDisposable.dispose();
+        tempButtonTextDisposable.dispose();
         super.onPause( );
+        
+        if( DEBUG ) Log.d( TAG, "Exiting onPause()" );
+    }
+    
+    @Override
+    protected void onStop( ) {
+        tempFUpdaterDisposable.dispose();  // turn off periodic temp updates
+        super.onStop( );
     }
 }

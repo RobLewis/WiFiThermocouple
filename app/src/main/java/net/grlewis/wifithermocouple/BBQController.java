@@ -1,9 +1,12 @@
 package net.grlewis.wifithermocouple;
 
-import android.app.Activity;
 import android.os.Handler;
 import android.util.Log;
 
+import junit.framework.Test;
+
+import static net.grlewis.wifithermocouple.Constants.DEBUG;
+import static net.grlewis.wifithermocouple.Constants.DEFAULT_SETPOINT;
 import static net.grlewis.wifithermocouple.Constants.MIN_OUTPUT_PCT;
 
 class BBQController implements PIDController {
@@ -12,7 +15,7 @@ class BBQController implements PIDController {
     
     private final ThermocoupleApp appInstance;
     private final PIDState pidState;
-    private final TestActivity testActivity;
+    private TestActivity testActivityRef;
     
     // PID parameters & variables are in pidState
     
@@ -31,11 +34,16 @@ class BBQController implements PIDController {
     BBQController( ) {
         appInstance = ThermocoupleApp.getSoleInstance();
         pidState = appInstance.pidState;
-        testActivity = appInstance.testActivityRef;
+        testActivityRef = appInstance.testActivityRef;
         pidHandler = new Handler( );
-        pidLoopRunnable = new PIDLoopRunnable( );    }
+        pidLoopRunnable = new PIDLoopRunnable( );
+        
+        pidState.set( DEFAULT_SETPOINT );  // need some defined setpoint or won't start
+    }
     
-    
+    void setTestActivityRef( TestActivity testAct ) {
+        testActivityRef = testAct;
+    }
     
     // INTERFACE IMPLEMENTATION  \\
     
@@ -53,13 +61,17 @@ class BBQController implements PIDController {
     
     @Override  //
     public boolean start( ) {  // return false if setpoint hasn't been set
-        if ( pidState.getSetPoint() == null || pidState.isReset() || pidState.getPeriodSecs() == null ) {  // TODO: other conditions
+        if ( pidState.getSetPoint() == null /*|| pidState.isReset()*/ || pidState.getPeriodSecs() == null ) {  // TODO: other conditions
             pidState.setEnabled( false );
+            if( DEBUG ) Log.d( TAG, "Can't start PID" );
             return false;
         }
         pidState.setEnabled( true );
         pidState.setReset( false );
+        pidState.setIntClamped( false );
+        pidState.setIntAccum( 0f );
         pidHandler.post( pidLoopRunnable );  // start the loop TODO: anything else needed before we start?
+        if( DEBUG ) Log.d( TAG, "start() completed successfully(?)" );
         return true;
     }
     
@@ -147,11 +159,12 @@ class BBQController implements PIDController {
     
     class PIDLoopRunnable implements Runnable {
         
-        final String TAG = PIDLoopRunnable.class.getSimpleName(); 
+        final String TAG = PIDLoopRunnable.class.getSimpleName();
         
         public void run() {
             
-            Log.d( TAG, "Entering PID Control Loop" );
+            if( DEBUG ) Log.d( TAG, "Entering PID Control Loop; temp = " + pidState.getCurrentVariableValue()
+                    + " setpoint = " + pidState.getSetPoint() );  // ??
             
             if( pidState.isEnabled() ) {
                 // schedule next loop run
@@ -177,14 +190,18 @@ class BBQController implements PIDController {
                 
                 if( outputPercent >= MIN_OUTPUT_PCT ) {
                     pidHandler.post( () ->  appInstance.wifiCommunicator.fanControlWithWarning( true ).subscribe(
-                            response -> testActivity.fanButtonTextPublisher.onNext( "PID TURNED FAN ON" )
+                            response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN ON" )
                     ) );
-                    pidHandler.postDelayed( () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
-                            response -> testActivity.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
+                    if( outputPercent < 100f ) pidHandler.postDelayed( () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
+                            response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
                             ),
                             (long)(pidState.getPeriodSecs() * 1000f * outputPercent/100f) );
+                } else {  // outputPercent < MIN_OUTPUT_PCT -- turn fan off
+                    pidHandler.post( () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
+                            response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" ) ) );
                 }
             }  // if enabled
+            if( DEBUG ) Log.d( TAG, "Exiting PID Control Loop with outputPercent = " + outputPercent );
         }  // .run()
     }  // PID loop Runnable
     
