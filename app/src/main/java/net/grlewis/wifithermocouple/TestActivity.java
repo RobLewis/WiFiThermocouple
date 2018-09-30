@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.SeekBar;
+import android.widget.Toast;
 import android.widget.ToggleButton;
 
 import com.jakewharton.rxbinding2.InitialValueObservable;
@@ -118,21 +119,25 @@ public class TestActivity extends AppCompatActivity {
         
         // set initial appState
         appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off
+                .retry( 2 )  // try up to 3 times
                 .observeOn( AndroidSchedulers.mainThread() )
-                .subscribe( httpResponse -> {
-                    //toggleFanButton.setText( "FAN IS INITIALLY OFF" );
-                    fanButtonTextPublisher.onNext( "FAN IS INITIALLY OFF" );
-                    appInstance.appState.setFanState( false );  // TODO: need?
-                    appInstance.pidState.setOutputOn( false );  // TODO: doesn't fanControlWithWarning take care of this?
-                } );  // TODO: think we need error handler
+                .subscribe(
+                        httpResponse -> {
+                            fanButtonTextPublisher.onNext( "FAN IS INITIALLY OFF" );
+                            //appInstance.appState.setFanState( false );  // TODO: need?
+                            appInstance.pidState.setOutputOn( false );  // TODO: doesn't fanControlWithWarning take care of this?
+                        },
+                        httpError -> {
+                            Toast.makeText( TestActivity.this, "Fan shutoff in onStart() failed after retries"
+                                    + httpError.getMessage(), Toast.LENGTH_SHORT ).show();
+                        } );
         
         appInstance.wifiCommunicator.tempFGetter.get()
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe( tempJSON -> {
                             float tempF = (float)tempJSON.getDouble( "TempF" );
-                            //updateTempButton.setText( "INITIAL READING: " + String.valueOf( tempF ) + "°F" );
                             tempButtonTextPublisher.onNext( "INITIAL READING: " + String.valueOf( tempF ) + "°F" );
-                            appInstance.appState.setCurrentTempF( tempF );  // TODO: need?
+                            //appInstance.appState.setCurrentTempF( tempF );  // TODO: need?
                             appInstance.pidState.setCurrentVariableValue( tempF );
                         }
                 );

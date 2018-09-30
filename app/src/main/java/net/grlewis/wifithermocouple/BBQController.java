@@ -174,7 +174,7 @@ class BBQController implements PIDController {
         public void run() {
             
             if( DEBUG ) Log.d( TAG, "Entering PID Control Loop; temp = " + pidState.getCurrentVariableValue()
-                    + " setpoint = " + pidState.getSetPoint() );  // ??
+                    + " setpoint = " + pidState.getSetPoint() );
             
             if( pidState.isEnabled() ) {
                 // schedule next loop run
@@ -200,22 +200,26 @@ class BBQController implements PIDController {
                 outputPercent = outputPercent > 100f? 100f : outputPercent;
                 pidState.setCurrentPctg( outputPercent );
                 
-                if( outputPercent >= MIN_OUTPUT_PCT ) {
+                if( outputPercent >= pidState.getMinOutPctg() ) {
                     pidHandler.post( () ->  appInstance.wifiCommunicator.fanControlWithWarning( true ).subscribe(
                             response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN ON" )
+                            // TODO: error handler?
                     ) );
-                    if( outputPercent < 100f ) pidHandler.postDelayed( () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
-                            response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
-                            ),
+                    if( outputPercent < 100f ) pidHandler.postDelayed(
+                            () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
+                                    response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
+                            ),  // TODO: error handler?
                             (long)(pidState.getPeriodSecs() * 1000f * outputPercent/100f) );
                 } else {  // outputPercent < MIN_OUTPUT_PCT -- turn fan off
                     pidHandler.post( () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
                             response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" ) ) );
+                            // TODO: error handler?
                 }
             }  else { // disabled
                 appInstance.testActivityRef.pidButtonTextPublisher.onNext( "PID is disabled" );
             }
-            if( DEBUG ) Log.d( TAG, "Exiting PID Control Loop with outputPercent = " + outputPercent );
+            if( DEBUG ) Log.d( TAG, "Exiting PID Control Loop with outputPercent = " + outputPercent
+                    + ", error = " + error + ", integral term = " + integralTerm );
         }  // .run()
     }  // PID loop Runnable
     

@@ -180,6 +180,7 @@ class PIDState implements Cloneable {  // TODO: cloneable?
     @Override  // TODO: serialize before storing?
     protected PIDState clone( ) throws CloneNotSupportedException {
         PIDState theClone = new PIDState();
+        
         theClone.setPoint = setPoint;  // just copying references? will we get NPE?
         theClone.currentVariableValue = currentVariableValue;
         theClone.previousVariableValue = previousVariableValue;
@@ -192,6 +193,9 @@ class PIDState implements Cloneable {  // TODO: cloneable?
         theClone.intAccum = intAccum;
         theClone.periodSecs = periodSecs;
         theClone.enabled = enabled;
+        theClone.reset = reset;
+        theClone.outputOn = outputOn;
+        theClone.minOutPct = minOutPct;
         
         return theClone;
     }
