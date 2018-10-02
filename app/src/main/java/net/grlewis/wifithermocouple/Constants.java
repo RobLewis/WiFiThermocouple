@@ -110,7 +110,7 @@ final class Constants {
     
     // New, for PIDState constructor
     static final float DEFAULT_SETPOINT = 250f;    // TODO: consider °F or °C?
-    static final float DEFAULT_GAIN = 5f;          // TODO: value?
+    static final float DEFAULT_GAIN = 2f;          // TODO: value?
     static final float DEFAULT_PROP_COEFF = 16f;   // TODO: value? from AppleScript
     static final float DEFAULT_INT_COEFF = 2f;     // TODO: value?
     static final float DEFAULT_DIFF_COEFF = 3f;    // TODO: value?
