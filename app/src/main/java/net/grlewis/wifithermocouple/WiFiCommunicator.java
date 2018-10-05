@@ -14,6 +14,8 @@ import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.subjects.PublishSubject;
+import io.reactivex.subjects.Subject;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
@@ -33,9 +35,9 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     // if we ever have multiple instances of this class, they will share these:
     private final static String TAG = WiFiCommunicator.class.getSimpleName();
-    private final static OkHttpClient client = new OkHttpClient();  // supposed to only have one
-    private final static OkHttpClient eagerClient = client.newBuilder().readTimeout( FAN_CONTROL_TIMEOUT_SECS, TimeUnit.SECONDS ).build();  // 5 sec?
-    private final static ThermocoupleApp appInstance = ThermocoupleApp.getSoleInstance();
+    private final static OkHttpClient client;
+    private final static OkHttpClient eagerClient;  // 5 sec?
+    private final static ThermocoupleApp appInstance;
     
     // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
     AsyncJSONGetter tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client );
@@ -44,17 +46,46 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     // enable watchdog timer (dispose to disable)
     Observable<Response> enableWatchdogObservable;
+    PublishSubject<Response> enableAndResetWatchdogSubject;  // subscribe to enable watchdog & start resetting, dispose to disable/stop
+    
+    
+    static {  // initializer
+        
+        appInstance = ThermocoupleApp.getSoleInstance();
+        
+        client = new OkHttpClient.Builder()     // recommended to have only one
+                .retryOnConnectionFailure( true )  // this supposedly defaults true but trying it to fix "Socket closed" errors
+                //.connectTimeout( 10L, TimeUnit.SECONDS )  // the default is said to be 10 seconds
+                .build();
+        
+        eagerClient = client.newBuilder()
+                .readTimeout( FAN_CONTROL_TIMEOUT_SECS, TimeUnit.SECONDS )  // 5 sec? (default is 10)
+                .build();
+    }
     
     
     // constructor
     WiFiCommunicator() {
-        enableWatchdogObservable = watchdogEnableSingle.request()
-                .toObservable()
+        
+        
+        
+        enableWatchdogObservable = watchdogEnableSingle.request()  // returns the Single
+                .toObservable()  // convert to Observable that emits one item, then completes.
                 .doOnDispose( () -> {
                     watchdogDisableSingle.request().subscribe();
                     if( DEBUG ) Log.d( TAG, "enableWatchdogObservable disposed to disable watchdog" );
                 } );
+    
+//        enableAndResetWatchdogSubject = PublishSubject.create()
+//        .doOnSubscribe(
+//                disposable -> {
+//
+//                }
+//        )
+        ;
     }
+    
+    
     
     
     
@@ -91,7 +122,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
             .flatMapSingle( getTempFNow -> tempFGetter.get() )  // combines outputs of Singles into an Observable stream
             .doOnNext( jsonF -> {
                 appInstance.pidState.setCurrentVariableValue( (float)(jsonF.getDouble( "TempF" ) ) );
-                appInstance.testActivityRef.tempButtonTextPublisher.onNext( "tempFUpdater set new value: "
+                appInstance.testActivityRef.updateTempButtonTextPublisher.onNext( "tempFUpdater set new value: "
                         + String.valueOf( jsonF.getDouble( "TempF" ) ) );
             } )
             .doOnTerminate( () -> fanControlSingle( false ).request().subscribe(

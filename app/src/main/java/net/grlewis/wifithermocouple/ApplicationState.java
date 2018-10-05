@@ -12,6 +12,8 @@ class ApplicationState
     
     // instance variables
     
+    // TODO: figure out what needs to be here (most can go in PIDState?)
+    
     // appState of the peripheral device & firmware (initially null)
     private Float currentTempF;           // last temperature reading from the thermocouple
     private Float currentTempC;           // converted/synced to/from C/F as needed

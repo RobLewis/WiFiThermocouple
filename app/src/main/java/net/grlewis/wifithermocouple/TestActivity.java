@@ -17,13 +17,15 @@ import com.jakewharton.rxbinding2.InitialValueObservable;
 import com.jakewharton.rxbinding2.view.RxView;
 import com.jakewharton.rxbinding2.widget.RxCompoundButton;
 import com.jakewharton.rxbinding2.widget.RxSeekBar;
+import com.jakewharton.rxbinding2.widget.SeekBarChangeEvent;
+import com.jakewharton.rxbinding2.widget.SeekBarProgressChangeEvent;
+import com.jakewharton.rxbinding2.widget.SeekBarStopChangeEvent;
 
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.BehaviorSubject;
 import io.reactivex.subjects.Subject;
-import okhttp3.Response;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
@@ -39,16 +41,17 @@ public class TestActivity extends AppCompatActivity {
     Button setTempButton;
     ToggleButton togglePIDButton;
     
-    InitialValueObservable<Boolean> fanToggleObservable;
+    InitialValueObservable<Boolean> fanToggleObservable;  // emits clicks on Fan On/Off button
     InitialValueObservable<Boolean> pidToggleObservable;
     Observable<Object> tempUpdateObservable;
     Observable<Object> tempSetObservable;
-    InitialValueObservable<Integer> tempSliderObservable;
+    //InitialValueObservable<Integer> tempSliderObservable;
+    InitialValueObservable<SeekBarChangeEvent> tempSliderEventObservable;
     
     Disposable fanToggleDisposable;
     Disposable pidToggleDisposable;
     Disposable tempUpdateDisposable;
-    Disposable tempSetDisposable;
+    Disposable setTempButtonTextDisposable;
     Disposable tempSliderDisposable;
     Disposable fanButtonTextDisposable;
     Disposable tempButtonTextDisposable;
@@ -58,9 +61,10 @@ public class TestActivity extends AppCompatActivity {
     Disposable watchdogResetDisposable;
     Disposable watchdogStatusUpdatesDisposable;
     
-    Subject<String> fanButtonTextPublisher;   // called to emit text to be displayed by fan state button (or other subs)
-    Subject<String> tempButtonTextPublisher;  // called to emit text to be displayed by temp update button (or other subs)
-    Subject<String> pidButtonTextPublisher;   // called to emit text to be displayed by PID enable/disable button (or other subs)
+    Subject<String> fanButtonTextPublisher;         // called to emit text to be displayed by fan state button (or other subs)
+    Subject<String> updateTempButtonTextPublisher;  // called to emit text to be displayed by temp update button (or other subs)
+    Subject<String> pidButtonTextPublisher;         // called to emit text to be displayed by PID enable/disable button (or other subs)
+    Subject<String> setTempButtonTextPublisher;     // called to emit text to be displayed by PID enable/disable button (or other subs)
     
     
     @Override
@@ -86,17 +90,19 @@ public class TestActivity extends AppCompatActivity {
         fanToggleObservable = RxCompoundButton.checkedChanges( toggleFanButton );
         pidToggleObservable = RxCompoundButton.checkedChanges( togglePIDButton );
         tempUpdateObservable = RxView.clicks( updateTempButton );
-        tempSliderObservable = RxSeekBar.changes( tempSlider );
+        //tempSliderObservable = RxSeekBar.changes( tempSlider );
+        tempSliderEventObservable = RxSeekBar.changeEvents( tempSlider );  // now detect all events, not just motion
         
         
         // BehaviorSubject emits its last observed value plus future values to each new subscriber
         // .toSerialized() converts any kind of Subject to a plain Subject (see above declarations)
-        fanButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
-        tempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
+        fanButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe TODO: need serialized? always UI thread?
+        updateTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
         pidButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
+        setTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
         
         
-        FloatingActionButton fab = (FloatingActionButton) findViewById( R.id.fab );
+        FloatingActionButton fab = (FloatingActionButton) findViewById( R.id.fab );  // what TODO with this?
         fab.setOnClickListener( new View.OnClickListener( ) {
             @Override
             public void onClick( View view ) {
@@ -118,7 +124,7 @@ public class TestActivity extends AppCompatActivity {
         super.onStart( );
         
         float startingSetpoint = appInstance.pidState.getSetPoint();  // DEFAULT_SETPOINT constant
-        tempButtonTextPublisher.onNext( "INITIAL TEMP SETTING: " + startingSetpoint );
+        updateTempButtonTextPublisher.onNext( "INITIAL TEMP SETTING: " + startingSetpoint );
         tempSlider.setProgress( Math.round( appInstance.pidState.getSetPoint() ) );
         pidButtonTextPublisher.onNext( "PID IS INITIALLY DISABLED:" );
         
@@ -143,16 +149,20 @@ public class TestActivity extends AppCompatActivity {
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe( tempJSON -> {
                             float tempF = (float)tempJSON.getDouble( "TempF" );
-                            tempButtonTextPublisher.onNext( "INITIAL READING: " + String.valueOf( tempF ) + "°F" );
+                            updateTempButtonTextPublisher.onNext( "INITIAL READING: " + String.valueOf( tempF ) + "°F" );
                             appInstance.pidState.setCurrentVariableValue( tempF );
-                        }
+                        },
+                        tempErr -> Log.d( TAG, "Error getting initial temp reading: " + tempErr.getMessage() )
                 );
         
         
         // initiate periodic temperature updates
-        tempFUpdaterDisposable = appInstance.wifiCommunicator.tempFUpdater.subscribe();  // keeps pidState updated too
-    
-    
+        tempFUpdaterDisposable = appInstance.wifiCommunicator.tempFUpdater.subscribe(
+                jsonF -> { },
+                tempErr -> Log.d( TAG, "Error from tempFUpdater: " + tempErr.getMessage() )  // TODO: was this the missing error handler?
+        );  // keeps pidState updated too
+        
+        
         // enable watchdog timer
         /*appInstance.wifiCommunicator.watchdogEnableSingle.request()  // returns Single
                 .observeOn( AndroidSchedulers.mainThread() )
@@ -207,17 +217,31 @@ public class TestActivity extends AppCompatActivity {
         
         super.onResume( );
         
-        fanToggleDisposable = fanToggleObservable.subscribe(
-                newFanState -> {
-                    //appInstance.appState.setFanState( newFanState );  // TODO: need?
-                    appInstance.pidState.setOutputOn( newFanState );
-                    appInstance.wifiCommunicator.fanControlWithWarning( newFanState )
-                            .observeOn( AndroidSchedulers.mainThread() )
-                            .subscribe( httpResponse -> toggleFanButton.setText( newFanState? "FAN IS ON" : "FAN IS OFF" ) );
-                },
-                fanToggleErr -> {}  // TODO (but note we get a warning)
-        );
-        pidToggleDisposable = pidToggleObservable  // click events for toggle button to enable/disable PID
+        // handle clicks on the Fan On/Off button: switch fan and update button text
+        fanToggleDisposable = fanToggleObservable
+                //.skipInitialValue()  // discard the immediate emission on subscription TODO: does this work?
+                .skip( 1L )
+                .subscribe(
+                        newFanState -> {  // fan on/off button clicked
+                            appInstance.pidState.setOutputOn( newFanState );
+                            appInstance.wifiCommunicator.fanControlWithWarning( newFanState )
+                                    .observeOn( AndroidSchedulers.mainThread() )
+                                    //.subscribe( httpResponse -> toggleFanButton.setText( newFanState? "FAN IS ON" : "FAN IS OFF" ) );
+                                    .subscribe(
+                                            response -> {
+                                                fanButtonTextPublisher.onNext( newFanState? "Fan turned on with button" : "Fan turned off with button" );
+                                                if( DEBUG ) Log.d( TAG, newFanState? "Fan turned on with button" : "Fan turned off with button" );
+                                            },
+                                            fanSwitchErr -> Log.d( TAG, "Error manually switching fan: " + fanSwitchErr.getMessage() )
+                                    );
+                        },
+                        fanToggleErr -> {
+                            Log.d( TAG, "Error getting fan button click: " + fanToggleErr.getMessage() );
+                        }  // TODO (note we get a warning)
+                );
+        
+        // handle click events for toggle button to enable/disable PID
+        pidToggleDisposable = pidToggleObservable
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         newPidState -> {
@@ -238,25 +262,48 @@ public class TestActivity extends AppCompatActivity {
                         pidToggleErr -> { Log.d( TAG, "Error with pidToggleObservable: "
                                 + pidToggleErr.getMessage(), pidToggleErr );}  // TODO
                 );
+        
+        // handle clicks on the temperature update button (manual update)
         tempUpdateDisposable = tempUpdateObservable.subscribe(
                 click -> appInstance.wifiCommunicator.tempFGetter.get()
                         .observeOn( AndroidSchedulers.mainThread() )
                         .subscribe(
-                                tempJSON -> tempButtonTextPublisher.onNext("LAST READING: "
-                                        + String.valueOf( tempJSON.getDouble( "TempF" ) ) + "°F" )
+                                tempJSON -> {
+                                    updateTempButtonTextPublisher.onNext("LAST READING: "
+                                            + String.valueOf( tempJSON.getDouble( "TempF" ) ) + "°F" );
+                                    if( DEBUG ) Log.d( TAG, "Temp manually updated successfully" );
+                                },
+                                tempJSONErr -> {
+                                    updateTempButtonTextPublisher.onNext( "Manual temp update error: "
+                                            + tempJSONErr.getMessage() );
+                                    if( DEBUG ) Log.d( TAG, "Error getting JSON temp update: " + tempJSONErr.getMessage() );
+                                }
                         )
         );
-        tempSliderDisposable = tempSliderObservable.subscribe(  // emits Integer updates
-                newValue -> { setTempButton.setText( "SETPOINT: " + String.valueOf( newValue ) + "°F" );
-                    appInstance.pidState.set( Float.valueOf( newValue ) );
-                }
-        );
+        
+        
+        tempSliderDisposable = tempSliderEventObservable
+                .observeOn( AndroidSchedulers.mainThread() )
+                .subscribe(  // now emits SeekBarChangeEvent
+//                newValue -> { setTempButton.setText( "SETPOINT: " + String.valueOf( newValue ) + "°F" );
+//                    appInstance.pidState.set( Float.valueOf( newValue ) );
+//                }
+                        newEvent -> {
+                            if( newEvent instanceof SeekBarProgressChangeEvent ) {
+                                setTempButtonTextPublisher.onNext( "SETPOINT: "
+                                        + String.valueOf( ((SeekBarProgressChangeEvent) newEvent).progress() ) + "°F" );
+                            } else if( newEvent instanceof SeekBarStopChangeEvent ) {
+                                appInstance.pidState.set( (float) tempSlider.getProgress() );
+                                if( DEBUG ) Log.d( TAG, "Setpoint changed to " + tempSlider.getProgress() );
+                            }
+                        }
+                );
         fanButtonTextDisposable = fanButtonTextPublisher
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         buttonText -> toggleFanButton.setText( buttonText )
                 );
-        tempButtonTextDisposable = tempButtonTextPublisher
+        tempButtonTextDisposable = updateTempButtonTextPublisher
                 .observeOn( AndroidSchedulers.mainThread() )  // else can't touch UI
                 .subscribe(
                         buttonText -> updateTempButton.setText( buttonText ),
@@ -266,6 +313,11 @@ public class TestActivity extends AppCompatActivity {
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         buttonText -> togglePIDButton.setText( buttonText )
+                );
+        setTempButtonTextDisposable = setTempButtonTextPublisher
+                .observeOn( AndroidSchedulers.mainThread() )
+                .subscribe(
+                        setTempButton::setText
                 );
         
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
@@ -283,6 +335,7 @@ public class TestActivity extends AppCompatActivity {
         tempSliderDisposable.dispose();
         fanButtonTextDisposable.dispose();
         tempButtonTextDisposable.dispose();
+        setTempButtonTextDisposable.dispose();
         super.onPause( );
         
         if( DEBUG ) Log.d( TAG, "Exiting onPause()" );
