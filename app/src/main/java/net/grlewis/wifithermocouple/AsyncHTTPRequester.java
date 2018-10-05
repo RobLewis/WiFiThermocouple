@@ -47,7 +47,7 @@ import static net.grlewis.wifithermocouple.Constants.DEBUG;
  *
  */
 
-public class AsyncHTTPRequester {  // based on AsyncJSONGetter
+public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting enhancements to it)
     
     private static final String TAG = AsyncHTTPRequester.class.getSimpleName( );
     
@@ -113,7 +113,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter
                     } else {  // Throwable was emitted because sequence still alive
                         disposed = true;  // TODO: right? Error disposes?
                         if( DEBUG ) Log.d( TAG, "onFailure callback for request UUID "
-                                + requestUUID.toString() + "signaled IOException" );
+                                + requestUUID.toString() + "signaled IOException: " + e.getMessage() );
                     }
                 }
                 
@@ -158,15 +158,14 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter
         requestUUID = requestID;
         client = client == null?                    // if client is null
                 httpClient == null?                 // and passed httpClient is also null
-                        new OkHttpClient( ) :       // create a new client; if passed httpClient is not null
+                        new OkHttpClient( ) :       // create a new default client; if passed httpClient is not null
                         httpClient                  // use it
                 :                                   // but if client is not null
                 client;                             // keep it
         disposable = new Disposable() {
             @Override
             public void dispose() {
-                //savedCall.cancel();                 // attempt to cancel any call in progress  TODO: this is causing crashes!
-                if( !savedCall.isExecuted() ) savedCall.cancel();  // TODO: maybe this?
+                if( !savedCall.isExecuted() ) savedCall.cancel();  // TODO: this seems to have fixed crash (but why is .dispose() getting called twice for some requests?
                 disposed = true;
                 if( DEBUG ) Log.d( TAG, ".dispose() called for request ID " + requestID.toString()
                         + "; savedCall executed? " + savedCall.isExecuted() );
@@ -180,13 +179,14 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter
     }  // primary constructor
     
     
+    // constructor that supplies a random request UUID if we don't
     public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient ) {
         // if no UUID is supplied, generate one
         this( targetURL, httpClient, UUID.randomUUID() );
     }
     
     /*
-    Alternate:
+    Alternate with lambdas etc. might work:
     httpRequest = Single.create( emitter -> { <code that calls emitter.onSuccess() and emitter.onError()> } );
      */
     
@@ -203,7 +203,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter
     }
     
     
-    // change source URL: returns the getter so you can chain with .request()
+    // change source URL: returns the requester so you can chain with .request()
     public AsyncHTTPRequester setURL( URL newURL ) {
         theURL = newURL;
         requestUUID = UUID.randomUUID();

@@ -101,6 +101,7 @@ final class Constants {
     
     
     static final int TEMP_UPDATE_SECONDS = 5;  // seconds between temp polling (can be different from PID period)
+    static final int HISTORY_MINUTES = 60;     // how many minutes of temp history to buffer
     static final int WATCHDOG_CHECK_SECONDS = 40;
     static final int FAN_CONTROL_TIMEOUT_SECS = 5;  // can't wait around for fan commands TODO: was 2 too short?
     static final float MIN_OUTPUT_PCT = 5f;  // fan on duty cycle % less than this are ignored(?)--TODO: should it be in PIDState?

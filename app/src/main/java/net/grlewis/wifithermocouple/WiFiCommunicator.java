@@ -7,6 +7,7 @@ import android.widget.Toast;
 import org.json.JSONObject;
 
 import java.net.URL;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -25,6 +26,7 @@ import static net.grlewis.wifithermocouple.Constants.ENABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_CONTROL_TIMEOUT_SECS;
 import static net.grlewis.wifithermocouple.Constants.FAN_OFF_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_ON_URL;
+import static net.grlewis.wifithermocouple.Constants.HISTORY_MINUTES;
 import static net.grlewis.wifithermocouple.Constants.RESET_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
@@ -38,6 +40,9 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     private final static OkHttpClient client;
     private final static OkHttpClient eagerClient;  // 5 sec?
     private final static ThermocoupleApp appInstance;
+    
+    // buffer for 1 hour of temp history
+    private ArrayBlockingQueue<Float> tempHistoryBuffer;  // (use .toArray() to get the whole thing for graphing)
     
     // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
     AsyncJSONGetter tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client );
@@ -67,7 +72,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     // constructor
     WiFiCommunicator() {
         
-        
+        tempHistoryBuffer = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
         
         enableWatchdogObservable = watchdogEnableSingle.request()  // returns the Single
                 .toObservable()  // convert to Observable that emits one item, then completes.
@@ -75,7 +80,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                     watchdogDisableSingle.request().subscribe();
                     if( DEBUG ) Log.d( TAG, "enableWatchdogObservable disposed to disable watchdog" );
                 } );
-    
+
 //        enableAndResetWatchdogSubject = PublishSubject.create()
 //        .doOnSubscribe(
 //                disposable -> {
@@ -118,12 +123,20 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     // we should be able to ignore the JSON it emits
     // note AsyncJSONGetter is a Single; this combines the series of Single outputs into an Observable stream
     // TODO: maybe add watchdog status query?
-    Observable<JSONObject> tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )
+    Observable<JSONObject> tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )  // currently 5 seconds
             .flatMapSingle( getTempFNow -> tempFGetter.get() )  // combines outputs of Singles into an Observable stream
             .doOnNext( jsonF -> {
-                appInstance.pidState.setCurrentVariableValue( (float)(jsonF.getDouble( "TempF" ) ) );
+                float currentTempF = (float) jsonF.getDouble( "TempF" );
+                appInstance.pidState.setCurrentVariableValue( currentTempF );
                 appInstance.testActivityRef.updateTempButtonTextPublisher.onNext( "tempFUpdater set new value: "
-                        + String.valueOf( jsonF.getDouble( "TempF" ) ) );
+                        + String.valueOf( currentTempF ) );
+                if( appInstance.pidState.isEnabled() ) {  // only keep history if PID is running TODO: (?)
+                    if ( tempHistoryBuffer.remainingCapacity( ) < 1 )
+                        tempHistoryBuffer.poll( );  // if buffer is full, discard oldest value
+                    tempHistoryBuffer.add( currentTempF );  // insert the new value at end of the queue
+                    if ( DEBUG )
+                        Log.d( TAG, "History buffer now contains " + tempHistoryBuffer.size( ) + " values" );
+                }
             } )
             .doOnTerminate( () -> fanControlSingle( false ).request().subscribe(
                     response -> { },  // successful OK response to fan shutoff

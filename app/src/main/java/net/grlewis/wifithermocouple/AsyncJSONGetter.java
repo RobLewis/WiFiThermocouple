@@ -11,6 +11,7 @@ import java.net.URL;
 import io.reactivex.Single;
 import io.reactivex.SingleEmitter;
 import io.reactivex.SingleOnSubscribe;
+import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import okhttp3.Headers;
 import okhttp3.ResponseBody;
@@ -22,6 +23,8 @@ import okhttp3.Callback;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+
+import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
 /**
  * Created on 2018-03-27.
@@ -52,6 +55,10 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
     private OkHttpClient client;  // created if not passed
     private UUID requestUUID;     // to identify the request that produced result (copied from HTTP Requester)
     
+    private Call savedCall;       // new stuff to implement Disposable
+    private boolean disposed;
+    private Disposable disposable;
+    
     
     class JSONGetterOnSubscribe implements SingleOnSubscribe<JSONObject> {
         
@@ -67,24 +74,32 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         @Override
         public void subscribe( final SingleEmitter<JSONObject> emitter ) throws Exception {
             
-            if( emitter == null ) throw new IllegalArgumentException( "Can't subscribe with a null SingleEmitter" );
+            if( emitter == null ) throw new NullPointerException( "Can't subscribe with a null SingleEmitter" );
             
             Request request = new Request.Builder( )
                     .url( sourceURL )
                     .tag( UUID.class, requestUUID )  // added from HTTP Requester
                     .build( );
             
-            Call call = client.newCall( request );
-            emitter.setCancellable( call::cancel );  // attempt to cancel the call if requester is unsubscribed
+            //Call call = client.newCall( request );
+            savedCall = client.newCall( request );
             
-            call.enqueue( new Callback( ) {
+            //emitter.setCancellable( call::cancel );  // attempt to cancel the call if requester is unsubscribed
+            emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
+            
+            savedCall.enqueue( new Callback( ) {
                 // Note callback is made after the response headers are ready. Reading the response body may still block.
                 
                 @Override
                 public void onFailure( @NonNull Call call, @NonNull IOException e ) {
                     if( !emitter.tryOnError( new IOException( TAG + ": onFailure Callback while starting JSON request with UUID: "
-                            + requestUUID.toString(), e ) ) ) {
-                        Log.d( TAG, "JSON request canceled before failure received" );
+                            + requestUUID.toString() + ": " + e.getMessage(), e ) ) ) {
+                        Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
+                                + " canceled before failure received" );
+                    } else {  // Throwable was emitted because sequence still alive
+                        disposed = true;  // TODO: right? Error disposes?
+                        if( DEBUG ) Log.d( TAG, "onFailure callback for request UUID "
+                                + requestUUID.toString() + "signaled IOException: " + e.getMessage() );
                     }
                 }
                 
@@ -94,6 +109,7 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                         if ( !response.isSuccessful( ) ) {
                             emitter.onError( new IOException( TAG + ": JSON request UUID " + requestUUID.toString()
                                     + " failed with HTTP status: " + response.message( ) ) );
+                            disposed = true;  // TODO: right?
                         } else {  // successful response
                             try {
                                 ResponseBody responseBody = response.body( );
@@ -107,12 +123,14 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                                         returnedJSON = new JSONObject( responseBody.string( ) );
                                         returnedJSON.put( "RequestUUID", requestUUID.toString() );  // add the request UUID
                                     } catch ( JSONException j ) {
-                                        emitter.onError( new JSONException( TAG + ": Invalid JSON returned from fetch: " + j.getMessage( ) ) );
+                                        emitter.onError( new JSONException( TAG + ": Invalid JSON returned from fetch (request UUID "
+                                                + requestUUID.toString() + "): " + j.getMessage( ) ) );
                                     }
                                     emitter.onSuccess( returnedJSON );
                                 } else {  // content type not JSON
                                     emitter.onError( new JSONException(
-                                            TAG + ": Returned content type header is not JSON but " + contentType ) );
+                                            TAG + ": Returned content type header (request UUID "
+                                                    + requestUUID.toString() + "): is not JSON but " + contentType ) );
                                 }
                             } catch ( IOException e ) {
                                 emitter.onError( new IOException( TAG + ": Error fetching JSON from URL "
@@ -126,7 +144,10 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                     response.close();  // always do this
                 }  // onResponse()
             } );  // Callback & enqueue()
-        }
+            
+            disposed = false;
+            
+        }  // subscribe
         
         
 /*        // invoked when Single.execute() is called (i.e., when it is subscribed to)
@@ -186,8 +207,7 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         }  // call()*/
         
         
-    }  // class HTTPRequesterOnSubscribe
-    
+    }  // class JSONGetterOnSubscribe
     
     
     // constructor
@@ -197,11 +217,25 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         requestUUID = requestID;
         client = client == null?               // if client is null
                 httpClient == null?            // and passed httpClient is also null
-                        new OkHttpClient( ) :  // create a new client; if passed httpClient is not null
+                        new OkHttpClient( ) :  // create a new default client; if passed httpClient is not null
                         httpClient             // use it
                 :                              // but if client is not null
                 client;                        // keep it
-    }
+        disposable = new Disposable() {
+            @Override
+            public void dispose() {
+                if( !savedCall.isExecuted() ) savedCall.cancel();  // TODO: this seems to have fixed crash (but why is .dispose() getting called twice for some requests?
+                disposed = true;
+                if( DEBUG ) Log.d( TAG, ".dispose() called for request ID " + requestID.toString()
+                        + "; savedCall executed? " + savedCall.isExecuted() );
+            }
+            @Override
+            public boolean isDisposed() {
+                if( DEBUG ) Log.d( TAG, ".isDisposed() returning " + disposed + " for request ID " + requestUUID.toString() );
+                return disposed;
+            }
+        };  // disposable
+    }  // primary constructor
     
     // constructor that supplies a random request UUID if we don't
     public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient ) {
@@ -209,20 +243,21 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
     }
     
     /*
-    Alternate:
+    Alternate with lambdas etc. might work:
     getJSON = Single.create( emitter -> { <code that calls emitter.onSuccess() and emitter.onError()> } );
      */
     
-    // convenience constructor that allows URL to be String
+    // convenience constructor that allows URL to be String (doesn't support requestID)
     public AsyncJSONGetter( String jsonURLString, OkHttpClient httpClient )
             throws Exception {  // (malformed URL exception--subclass of IOException
         this( new URL( jsonURLString ), httpClient );
     }
     
-    // after getting the JSON Getter instance, subscribe to this to do the request
+    // after getting the JSON Getter instance, subscribe to this to do the request. It emits JSON
     public Single<JSONObject> get( ) {
-        return getJSON.subscribeOn( Schedulers.io( ) );  // note off main thread
+        return getJSON;  // OkHttp3 manages its own threads, I think
     }
+    
     
     // change source URL: returns the getter so you can chain with .get()
     public AsyncJSONGetter setSourceURL( URL newURL ) {
@@ -240,6 +275,13 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
     
     public AsyncJSONGetter setSourceURL( String newURLString ) throws Exception { // malformed URL exception
         sourceURL = new URL( newURLString );
+        return this;
+    }
+    
+    
+    // set a new Request UUID if desired (as when changing URL)
+    public AsyncJSONGetter setRequestUUID( UUID requestID ) {
+        requestUUID = requestID;
         return this;
     }
     

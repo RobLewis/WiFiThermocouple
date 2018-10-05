@@ -186,11 +186,15 @@ public class TestActivity extends AppCompatActivity {
                 .subscribe(
                         wdJSON -> {
                             if( wdJSON.getBoolean( "WatchdogAlarm" ) ) {  // true if watchdog has timed out
-                                appInstance.wifiCommunicator.fanControlWithWarning( false ).retry( 3 ).subscribe();  // shut off fan
+                                appInstance.wifiCommunicator.fanControlWithWarning( false )
+                                        .retry( 3 )
+                                        .subscribe();  // shut off fan
                                 Toast.makeText( TestActivity.this, "Watchdog timed out -- aborting!", Toast.LENGTH_LONG ).show();
                                 pidButtonTextPublisher.onNext( "Watchdog timed out -- aborted!" );
                             } else {  // watchdog is OK
-                                appInstance.wifiCommunicator.watchdogResetSingle.request().subscribe();
+                                appInstance.wifiCommunicator.watchdogResetSingle
+                                        .request()
+                                        .subscribe();
                             }
                         },
                         wdStatusError -> { }  // TODO: error handler
