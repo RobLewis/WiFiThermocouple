@@ -1,12 +1,15 @@
 package net.grlewis.wifithermocouple;
 
 import android.annotation.TargetApi;
+import android.arch.lifecycle.ViewModelProviders;
 import android.util.Log;
+import android.util.Pair;
 import android.widget.Toast;
 
 import org.json.JSONObject;
 
 import java.net.URL;
+import java.util.Date;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -43,6 +46,10 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     // buffer for 1 hour of temp history
     private ArrayBlockingQueue<Float> tempHistoryBuffer;  // (use .toArray() to get the whole thing for graphing)
+    private ArrayBlockingQueue<Pair<Date,Float>> timestampedHistory;  // with timestamp
+    
+    private TempHistoryModel tempModel;
+    
     
     // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
     AsyncJSONGetter tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client );
@@ -73,6 +80,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     WiFiCommunicator() {
         
         tempHistoryBuffer = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
+        timestampedHistory = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
         
         enableWatchdogObservable = watchdogEnableSingle.request()  // returns the Single
                 .toObservable()  // convert to Observable that emits one item, then completes.
@@ -80,6 +88,11 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                     watchdogDisableSingle.request().subscribe();
                     if( DEBUG ) Log.d( TAG, "enableWatchdogObservable disposed to disable watchdog" );
                 } );
+    
+        // TODO: does this work? not yet
+        if( appInstance.testActivityRef == null ) Log.d( TAG, "appInstance.testActivityRef is null" );  // says it's null
+        tempModel = ViewModelProviders.of(appInstance.testActivityRef).get( TempHistoryModel.class );  // NPE
+
 
 //        enableAndResetWatchdogSubject = PublishSubject.create()
 //        .doOnSubscribe(
@@ -130,18 +143,32 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                 appInstance.pidState.setCurrentVariableValue( currentTempF );
                 appInstance.testActivityRef.updateTempButtonTextPublisher.onNext( "tempFUpdater set new value: "
                         + String.valueOf( currentTempF ) );
-                if( appInstance.pidState.isEnabled() ) {  // only keep history if PID is running TODO: (?)
-                    if ( tempHistoryBuffer.remainingCapacity( ) < 1 )
-                        tempHistoryBuffer.poll( );  // if buffer is full, discard oldest value
-                    tempHistoryBuffer.add( currentTempF );  // insert the new value at end of the queue
-                    if ( DEBUG )
-                        Log.d( TAG, "History buffer now contains " + tempHistoryBuffer.size( ) + " values" );
-                }
+                
+//                if( appInstance.pidState.isEnabled() ) {  // only keep history if PID is running TODO: (?)
+//                    if ( tempHistoryBuffer.remainingCapacity( ) < 1 )
+//                        tempHistoryBuffer.poll( );  // if buffer is full, discard oldest value
+//                    tempHistoryBuffer.add( currentTempF );  // insert the new value at end of the queue
+//                    if ( DEBUG )
+//                        Log.d( TAG, "History buffer now contains " + tempHistoryBuffer.size( ) + " values" );
+//                }
+//
+//                // alternative keeps value history with timestamps, for now even if PID is disabled.
+//                if( timestampedHistory.remainingCapacity() < 1 ) {  // queue is full
+//                    timestampedHistory.poll();                      // so discard oldest value
+//                }
+//                timestampedHistory.add( new Pair<>( new Date(), currentTempF ) );  // add latest to end of queue
+//                if ( DEBUG ) Log.d( TAG, "timestampedHistory now contains " + timestampedHistory.size( ) + " values" );
+                
+                // alternative with ViewModel TODO: does it work?
+                int tempHistSize = tempModel.addHistoryValue( new Pair<>( new Date(), currentTempF ) );
+                if( DEBUG ) Log.d( TAG, "History queue now contains " + tempHistSize + " values" );
+                
             } )
-            .doOnTerminate( () -> fanControlSingle( false ).request().subscribe(
+            .doOnTerminate( () -> fanControlSingle( false ).request().subscribe(  // if this stops for any reason, shut off fan
                     response -> { },  // successful OK response to fan shutoff
                     fanError -> { }// TODO: advise of possible emergency}
-            ) );  // if this stops for any reason, shut off fan
+            ) )
+            .observeOn( AndroidSchedulers.mainThread() );
     
     /*
      * Usage

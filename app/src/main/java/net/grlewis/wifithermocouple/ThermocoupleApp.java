@@ -64,7 +64,7 @@ public class ThermocoupleApp extends Application {
     protected void initialize() {
         // do all your initialization in this instance method
         // (with instance members, not static)
-        wifiCommunicator = new WiFiCommunicator();
+        //wifiCommunicator = new WiFiCommunicator();  // TODO: is this right? moved it to TestActivity onCreate() b/c it needs to exist first
         appState = new ApplicationState();
         pidState = new PIDState();
         bbqController = new BBQController();

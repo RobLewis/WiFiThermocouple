@@ -1,6 +1,7 @@
 package net.grlewis.wifithermocouple;
 
 import android.annotation.SuppressLint;
+import android.arch.lifecycle.ViewModelProviders;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -66,6 +67,9 @@ public class TestActivity extends AppCompatActivity {
     Subject<String> pidButtonTextPublisher;         // called to emit text to be displayed by PID enable/disable button (or other subs)
     Subject<String> setTempButtonTextPublisher;     // called to emit text to be displayed by PID enable/disable button (or other subs)
     
+    // attempt at ViewModel to save temp history
+    private TempHistoryModel tempModel;
+    
     
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
@@ -100,8 +104,12 @@ public class TestActivity extends AppCompatActivity {
         updateTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
         pidButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
         setTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
-        
-        
+    
+        tempModel = ViewModelProviders.of(this).get( TempHistoryModel.class );
+    
+        appInstance.wifiCommunicator = new WiFiCommunicator();  // moved it from Application because Activity needs to exist first
+    
+    
         FloatingActionButton fab = (FloatingActionButton) findViewById( R.id.fab );  // what TODO with this?
         fab.setOnClickListener( new View.OnClickListener( ) {
             @Override
