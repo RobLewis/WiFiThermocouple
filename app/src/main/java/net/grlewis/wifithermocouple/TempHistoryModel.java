@@ -94,6 +94,35 @@ public class TempHistoryModel extends ViewModel {
         return currentUIState.timestampedHistory;
     }
     
+    
+    
+    
+    
+    // setters that cause a live UI update (we hope)
+    public void updateUISetpoint( Float setpoint ) {
+        currentUIState.setpoint = setpoint;
+        uiLiveData.setValue( currentUIState );            // TODO: trigger the live update(?)
+    }
+    public void updateUITemp( Float temp ) {
+        currentUIState.currentTemp = temp;
+        uiLiveData.setValue( currentUIState );            // TODO: trigger the live update(?)
+    }
+    public void updateUIPIDEnabled( Boolean enabled ) {
+        currentUIState.pidEnabled = enabled;
+        uiLiveData.setValue( currentUIState );            // TODO: trigger the live update(?)
+    }
+    public void updateUIHeaterOn( Boolean heaterState ) {
+        currentUIState.heaterOn = heaterState;
+        uiLiveData.setValue( currentUIState );            // TODO: trigger the live update(?)
+    }
+    public void updateUIDutyCyclePct( Float percent ) {
+        currentUIState.dutyCyclePct = percent;
+        uiLiveData.setValue( currentUIState );            // TODO: trigger the live update(?)
+    }
+    public void updateUIClamped( Boolean clamped ) {
+        currentUIState.clamped = clamped;
+        uiLiveData.setValue( currentUIState );            // TODO: trigger the live update(?)
+    }
     // Adds a value to the history queue, returning the updated number of values in the queue
     public int addHistoryValue( Pair<Date,Float> value ) {
         if( currentUIState.timestampedHistory == null ) {
@@ -103,6 +132,7 @@ public class TempHistoryModel extends ViewModel {
             currentUIState.timestampedHistory.poll();                         // discard items until it isn't
         }
         currentUIState.timestampedHistory.add( value );
+        uiLiveData.setValue( currentUIState );            // TODO: trigger the live update(?)
         return currentUIState.timestampedHistory.size();  // TODO: probably let LiveData handle updating?
     }
     
