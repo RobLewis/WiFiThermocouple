@@ -104,7 +104,6 @@ final class Constants {
     static final int HISTORY_MINUTES = 60;     // how many minutes of temp history to buffer
     static final int WATCHDOG_CHECK_SECONDS = 40;
     static final int FAN_CONTROL_TIMEOUT_SECS = 5;  // can't wait around for fan commands TODO: was 2 too short?
-    static final float MIN_OUTPUT_PCT = 5f;  // fan on duty cycle % less than this are ignored(?)--TODO: should it be in PIDState?
     
     static final String SOFTWARE_VERSION = "0.8";
     static final String HARDWARE_VERSION = "0.8";

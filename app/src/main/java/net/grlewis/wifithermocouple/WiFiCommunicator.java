@@ -19,7 +19,6 @@ import io.reactivex.Single;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.PublishSubject;
-import io.reactivex.subjects.Subject;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
@@ -48,7 +47,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     private ArrayBlockingQueue<Float> tempHistoryBuffer;  // (use .toArray() to get the whole thing for graphing)
     private ArrayBlockingQueue<Pair<Date,Float>> timestampedHistory;  // with timestamp
     
-    private TempHistoryModel tempModel;
+    private UIStateModel uiStateModel;
     
     
     // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
@@ -89,9 +88,9 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                     if( DEBUG ) Log.d( TAG, "enableWatchdogObservable disposed to disable watchdog" );
                 } );
     
-        // TODO: does this work? not yet
+        // TODO: does this work?
         if( appInstance.testActivityRef == null ) Log.d( TAG, "appInstance.testActivityRef is null" );  // says it's null
-        tempModel = ViewModelProviders.of(appInstance.testActivityRef).get( TempHistoryModel.class );  // NPE
+        uiStateModel = ViewModelProviders.of(appInstance.testActivityRef).get( UIStateModel.class );  // NPE
 
 
 //        enableAndResetWatchdogSubject = PublishSubject.create()
@@ -160,9 +159,11 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
 //                if ( DEBUG ) Log.d( TAG, "timestampedHistory now contains " + timestampedHistory.size( ) + " values" );
                 
                 // alternative with ViewModel TODO: does it work?
-                int tempHistSize = tempModel.addHistoryValue( new Pair<>( new Date(), currentTempF ) );
+                UIStateModel.UIState uiState = uiStateModel.getUIStateObject();
+                uiState.updateUITemp( currentTempF );  // try to send UI new value
+                int tempHistSize = uiState.addHistoryValue( new Pair<>( new Date(), currentTempF ) );
+                uiStateModel.getCurrentUIState().postValue( uiState );  // can't use .setValue() on a background thread
                 if( DEBUG ) Log.d( TAG, "History queue now contains " + tempHistSize + " values" );
-                
             } )
             .doOnTerminate( () -> fanControlSingle( false ).request().subscribe(  // if this stops for any reason, shut off fan
                     response -> { },  // successful OK response to fan shutoff
