@@ -35,9 +35,9 @@ class BBQController implements PIDController {
         testActivityRef = appInstance.testActivityRef;
         pidHandler = new Handler( );
         pidLoopRunnable = new PIDLoopRunnable( );
-        
         pidState.set( DEFAULT_SETPOINT );  // need some defined setpoint or won't start
     }
+    
     
     void setTestActivityRef( TestActivity testAct ) {
         testActivityRef = testAct;
@@ -46,7 +46,7 @@ class BBQController implements PIDController {
     // INTERFACE IMPLEMENTATION  \\
     
     @Override  // OK
-    public void set( Float setPoint ) {  // set it null to indicate uninitialized?
+    public synchronized void set( Float setPoint ) {  // set it null to indicate uninitialized?
         pidState.set( setPoint );
         pidState.setReset( false );      // TODO: can it run with just this value set?
     }
@@ -97,12 +97,12 @@ class BBQController implements PIDController {
     }
     
     @Override  // OK
-    public boolean isReset( ) {
+    public synchronized boolean isReset( ) {
         return pidState.isReset();
     }
     
     @Override  // OK
-    public float getError( ) {  // current value - setPoint (no need to use a wrapper)
+    public synchronized float getError( ) {  // current value - setPoint (no need to use a wrapper)
         return  pidState.getSetPoint() - pidState.getCurrentVariableValue();  // NI's odd choice of sign
     }
     
@@ -119,31 +119,31 @@ class BBQController implements PIDController {
     
     
     // current value of the controlled variable
-    public void setCurrentVariableValue( float value ) {
+    public synchronized void setCurrentVariableValue( float value ) {
         pidState.setCurrentVariableValue( value );
     }
     public Float getCurrentVariableValue() { return pidState.getCurrentVariableValue(); }
     
     // overall gain of the PID controller
-    public void setGain( float gain ) {
+    public synchronized void setGain( float gain ) {
         pidState.setGain( gain );
     }
     public Float getGain( ){ return pidState.getGain(); }
     
     // proportional coefficient
-    public void setPropCoeff( float propCoeff ) {
+    public synchronized void setPropCoeff( float propCoeff ) {
         pidState.setPropCoeff( propCoeff );
     }
     public Float getPropCoeff( ) { return pidState.getPropCoeff(); }
     
     // integral coefficient
-    public void setIntCoeff( float intCoeff ) {
+    public synchronized void setIntCoeff( float intCoeff ) {
         pidState.setIntCoeff( intCoeff );
     }
     public Float getIntCoeff( ) { return pidState.getIntCoeff(); }
     
     // differential coefficient
-    public void setDiffCoeff( float diffCoeff ) {
+    public synchronized void setDiffCoeff( float diffCoeff ) {
         pidState.setDiffCoeff( diffCoeff );
     }
     public Float getDiffCoeff( ) { return pidState.getDiffCoeff(); }
@@ -151,7 +151,7 @@ class BBQController implements PIDController {
     // minimum controlled output %
     
     @Override
-    public void setMinOutPctg( Float pctg ) {
+    public synchronized void setMinOutPctg( Float pctg ) {
         pidState.setMinOutPctg( pctg );
     }
     @Override

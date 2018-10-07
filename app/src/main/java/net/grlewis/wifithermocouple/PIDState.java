@@ -47,133 +47,133 @@ class PIDState implements Cloneable {  // TODO: cloneable?
     // GETTERS & SETTERS
     
     // reset controller
-    public Boolean isReset( ) {
+    Boolean isReset( ) {
         return reset;
     }
-    public void setReset( Boolean reset ) {
+    void setReset( Boolean reset ) {
         this.reset = reset;
     }
     
     
     // The PID setpoint
-    public Float getSetPoint( ) {
+    Float getSetPoint( ) {
         return setPoint;
     }
-    public void set( Float setPoint ) {
+    void set( Float setPoint ) {
         this.setPoint = setPoint;
     }
     
     
     // current value of the controlled variable (i.e., temperature)
-    public Float getCurrentVariableValue( ) {
+    Float getCurrentVariableValue( ) {
         return currentVariableValue;
     }
-    public void setCurrentVariableValue( Float currentVariableValue ) {
+    void setCurrentVariableValue( Float currentVariableValue ) {
         this.currentVariableValue = currentVariableValue;
     }
     
     
     // previous value of the controlled variable (updated on each iteration)
-    public Float getPreviousVariableValue( ) {
+    Float getPreviousVariableValue( ) {
         return previousVariableValue;
     }
-    public void setPreviousVariableValue( Float previousVariableValue ) {
+    void setPreviousVariableValue( Float previousVariableValue ) {
         this.previousVariableValue = previousVariableValue;
     }
     
     
     // overall gain of PID
-    public Float getGain( ) {
+    Float getGain( ) {
         return gain;
     }
-    public void setGain( Float gain ) {
+    void setGain( Float gain ) {
         this.gain = gain;
     }
     
     
     // coefficient of the proportional term
-    public Float getPropCoeff( ) {
+    Float getPropCoeff( ) {
         return propCoeff;
     }
-    public void setPropCoeff( Float propCoeff ) {
+    void setPropCoeff( Float propCoeff ) {
         this.propCoeff = propCoeff;
     }
     
     
     // coefficient of the integral term
-    public Float getIntCoeff( ) {
+    Float getIntCoeff( ) {
         return intCoeff;
     }
-    public void setIntCoeff( Float intCoeff ) {
+    void setIntCoeff( Float intCoeff ) {
         this.intCoeff = intCoeff;
     }
     
     
     // coefficient of the differential term
-    public Float getDiffCoeff( ) {
+    Float getDiffCoeff( ) {
         return diffCoeff;
     }
-    public void setDiffCoeff( Float diffCoeff ) {
+    void setDiffCoeff( Float diffCoeff ) {
         this.diffCoeff = diffCoeff;
     }
     
     
     // whether the integrator is currently clamped
-    public Boolean intIsClamped( ) {
+    Boolean intIsClamped( ) {
         return intClamped;
     }
-    public void setIntClamped( Boolean intClamped ) {
+    void setIntClamped( Boolean intClamped ) {
         this.intClamped = intClamped;
     }
     
     
     // most recent % of "full on" of the controlled device
-    public Float getCurrentPctg( ) {
+    Float getCurrentPctg( ) {
         return currentPctg;
     }
-    public void setCurrentPctg( Float currentPctg ) {
+    void setCurrentPctg( Float currentPctg ) {
         this.currentPctg = currentPctg;
     }
     
     
     // current value of the accumulated integral term
-    public Float getIntAccum( ) {
+    Float getIntAccum( ) {
         return intAccum;
     }
-    public void setIntAccum( Float intAccum ) {
+    void setIntAccum( Float intAccum ) {
         this.intAccum = intAccum;
     }
     
     
     // current repeat interval in seconds
-    public Float getPeriodSecs( ) {
+    Float getPeriodSecs( ) {
         return periodSecs;
     }
-    public void setPeriodSecs( Float periodSecs ) {
+    void setPeriodSecs( Float periodSecs ) {
         this.periodSecs = periodSecs;
     }
     
     
     // whether PID operation is enabled
-    public Boolean isEnabled( ) {
+    Boolean isEnabled( ) {
         return enabled;
     }
-    public void setEnabled( Boolean enabled ) {  // TODO: shut heat off when disabling
+    void setEnabled( Boolean enabled ) {  // TODO: shut heat off when disabling
         this.enabled = enabled;
     }
     
     
     // whether the output device (fan, heater, etc.) is currently on or off
-    public Boolean outputIsOn( ) { return outputOn; }
-    public void setOutputOn( Boolean outOn ) {
+    Boolean outputIsOn( ) { return outputOn; }
+    void setOutputOn( Boolean outOn ) {
         this.outputOn = outOn;
     }
     
-    public Float getMinOutPctg( ) {
+    Float getMinOutPctg( ) {
         return minOutPct;
     }
     
-    public void setMinOutPctg( Float minOutPct ) {
+    void setMinOutPctg( Float minOutPct ) {
         this.minOutPct = minOutPct;
     }
     

@@ -110,13 +110,15 @@ final class Constants {
     static final String HARDWARE_VERSION = "0.8";
     
     // New, for PIDState constructor
-    static final float DEFAULT_SETPOINT = 250f;    // TODO: consider °F or °C?
-    static final float DEFAULT_GAIN = 2f;          // TODO: value?
-    static final float DEFAULT_PROP_COEFF = 16f;   // TODO: value? from AppleScript
-    static final float DEFAULT_INT_COEFF = 2f;     // TODO: value?
-    static final float DEFAULT_DIFF_COEFF = 3f;    // TODO: value?
-    static final float DEFAULT_PERIOD_SECS = 10f;  // TODO: value?
-    static final float DEFAULT_MIN_OUT_PCT = 5f;   // TODO: value?
+    static final float DEFAULT_SETPOINT = 250f;              // TODO: consider °F or °C?
+    static final float DEFAULT_GAIN = 2f;                    // TODO: value?
+    static final float DEFAULT_PROP_COEFF = 16f;             // TODO: value? from AppleScript
+    static final float DEFAULT_INT_COEFF = 2f;               // TODO: value?
+    static final float DEFAULT_DIFF_COEFF = 3f;              // TODO: value?
+    static final float DEFAULT_PERIOD_SECS = 10f;            // TODO: value?
+    static final float DEFAULT_MIN_OUT_PCT = 5f;             // TODO: value?
+    static final float DEFAULT_DUTY_CYCLE_PCT = 0f;          // TODO: value?
+    static final boolean DEFAULT_PID_ENABLE_STATE = false;   // TODO: value?
     
     
     

@@ -104,12 +104,12 @@ public class TestActivity extends AppCompatActivity {
         updateTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
         pidButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
         setTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
-    
+        
         tempModel = ViewModelProviders.of(this).get( TempHistoryModel.class );
-    
+        
         appInstance.wifiCommunicator = new WiFiCommunicator();  // moved it from Application because Activity needs to exist first
-    
-    
+        
+        
         FloatingActionButton fab = (FloatingActionButton) findViewById( R.id.fab );  // what TODO with this?
         fab.setOnClickListener( new View.OnClickListener( ) {
             @Override
@@ -260,12 +260,15 @@ public class TestActivity extends AppCompatActivity {
                             //appInstance.appState.enablePid( newPidState );  // TODO: need? (just sets appState.pidEnabled)
                             appInstance.pidState.setEnabled( newPidState );
                             if( newPidState ) {  // enable the PID
-                                appInstance.bbqController.start();
-                                pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped()?
-                                        "PID is enabled (clamped)" : "PID is enabled" );
-                                if( DEBUG ) Log.d( TAG, "Attempting to start PID" );
+                                if( appInstance.bbqController.start() ) {
+                                    pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped( )?
+                                            "PID is enabled (clamped)" : "PID is enabled" );
+                                    if ( DEBUG ) Log.d( TAG, "PID start command succeeded" );
+                                } else { // problem starting
+                                    if( DEBUG ) Log.d( TAG, "Attempt to start PID failed");
+                                }
                             } else {  // disable the PID
-                                appInstance.bbqController.stop();
+                                appInstance.bbqController.stop();  // remove handler scheduled tasks, stop fan, set disabled
                                 pidButtonTextPublisher.onNext( "PID is disabled" );
                                 fanButtonTextPublisher.onNext( "PID turned fan off" );
                                 if( DEBUG ) Log.d( TAG, "Attempting to stop PID" );
