@@ -5,7 +5,6 @@ import android.util.Log;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 import static net.grlewis.wifithermocouple.Constants.DEFAULT_SETPOINT;
-import static net.grlewis.wifithermocouple.Constants.MIN_OUTPUT_PCT;
 
 class BBQController implements PIDController {
     

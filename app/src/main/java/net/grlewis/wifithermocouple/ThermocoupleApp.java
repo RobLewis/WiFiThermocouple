@@ -2,6 +2,7 @@ package net.grlewis.wifithermocouple;
 
 import android.app.Activity;
 import android.app.Application;
+import android.content.ComponentName;
 import android.util.Log;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
@@ -42,6 +43,7 @@ public class ThermocoupleApp extends Application {
     ApplicationState appState;
     PIDState pidState;
     BBQController bbqController;
+    ComponentName serviceComponentName;
     
     TestActivity testActivityRef;
     

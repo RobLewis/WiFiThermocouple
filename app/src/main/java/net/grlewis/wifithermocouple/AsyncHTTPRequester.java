@@ -55,6 +55,8 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
     private URL theURL;  // mutable
     private OkHttpClient client;
     private UUID requestUUID;
+    private int successes;
+    private int failures;
     
     private Call savedCall;       // new stuff to implement Disposable
     private boolean disposed;
@@ -106,6 +108,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                 
                 @Override
                 public void onFailure( @NonNull Call call, @NonNull IOException e ) {
+                    failures++;
                     if( !emitter.tryOnError( new IOException( TAG + ": onFailure Callback while starting HTTP request with UUID: "
                             + requestUUID.toString() + ": " + e.getMessage(), e ) ) ) {
                         Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
@@ -123,19 +126,22 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                         if ( !response.isSuccessful( ) ) {
                             emitter.onError( new IOException( TAG + ": HTTP request UUID " + requestUUID.toString()
                                     + " failed with HTTP status: " + response.message( ) ) );
+                            failures++;
                             disposed = true;  // TODO: right?
                         } else {  // successful response
                             if ( response.code( ) != 200 ) {  // response was not "OK"
+                                failures++;
                                 Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
                                         + " response code was not 200 (OK); was : " + response.code( ) );
                                 emitter.onError( new IOException( "HTTP request UUID " + requestUUID.toString()
                                         + " failed with response code: " + response.code( ) ) );
                                 disposed = true;  // TODO: right?
                             } else {  // HTTP response OK
+                                successes++;
                                 emitter.onSuccess( response );
                             }
                         }  // else successful response
-                    } else {  // emitter has been disposed
+                    } else {  // emitter has been disposed TODO: neither success nor failure, right?
                         if( DEBUG ) Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
                                 + " subscription disposed before response received" );
                         disposed = true;  // TODO: right?
@@ -156,6 +162,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         httpRequest = Single.create( new HTTPRequesterOnSubscribe( ) );
         theURL = targetURL;
         requestUUID = requestID;
+        successes = failures = 0;
         client = client == null?                    // if client is null
                 httpClient == null?                 // and passed httpClient is also null
                         new OkHttpClient( ) :       // create a new default client; if passed httpClient is not null
@@ -227,8 +234,10 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         requestUUID = requestID;
         return this;
     }
-    
     public UUID getRequestUUID( ) {return requestUUID; }
+    
+    public int getSuccessCount() { return successes; }
+    public int getFailureCount() { return failures; }
     
 }
 

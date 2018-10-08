@@ -7,13 +7,14 @@ package net.grlewis.wifithermocouple;
 /*
 Analogy with docs at <https://developer.android.com/topic/libraries/architecture/livedata#java>
 
+IN THE VIEW MODEL
 NameViewModel extends ViewModel          =         UIStateModel extends ViewModel
 MutableLiveData<String> mCurrentName     =         MutableLiveData<UIState> uiLiveData
 <String>                                 =         <UIState>
 MutableLiveData<String> getCurrentName() =         MutableLiveData<UIState> getCurrentUIState()
     (returns (if null, new) mCurrentName)              (returns uiLiveData)
 
-
+IN THE OWNER ACTIVITY
 NameViewModel mModel                     =          UIStateModel uiStateModel
 mModel = ViewModelProviders.of(this).get(NameViewModel.class)
                                          =          uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class )
@@ -22,8 +23,11 @@ Observer<String> nameObserver = new Observer<String> = Observer<UIStateModel.UIS
 onChanged(@Nullable final String newName)=          onChanged( @Nullable UIStateModel.UIState uiState )
 mModel.getCurrentName().observe(this, nameObserver) = uiStateModel.getCurrentUIState().observe(this, uiStateObserver )
 
-String anotherName = "John Doe"          =          (call a Setter in UIState)
-mModel.getCurrentName().postValue(anotherName) =     uiStateModel.getCurrentUIState().postValue( uiState instance )
+TO UPDATE THE STORED (MUTABLE) DATA
+String anotherName = "John Doe"          =          (call Setter(s) in UIState)
+mModel.getCurrentName().postValue(anotherName) =    uiStateModel.getCurrentUIState().postValue( uiState instance )
+You can also call .setValue( T item ) but only from a main thread.
+These cause all registered observers (in Started/Resumed state) to call their .onChanged() methods
 
 */
 

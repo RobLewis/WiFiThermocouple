@@ -180,7 +180,9 @@ public class TestActivity extends AppCompatActivity {
         
         
         // initiate periodic temperature updates
-        tempFUpdaterDisposable = appInstance.wifiCommunicator.tempFUpdater.subscribe(
+        tempFUpdaterDisposable = appInstance.wifiCommunicator.tempFUpdater
+                .retry( 3 )  // TODO: does this help with failures returning null?
+                .subscribe(
                 jsonF -> { },
                 tempErr -> Log.d( TAG, "Error from tempFUpdater: " + tempErr.getMessage() )  // TODO: was this the missing error handler?
         );  // keeps pidState updated too
@@ -373,10 +375,14 @@ public class TestActivity extends AppCompatActivity {
     
     @Override
     protected void onStop( ) {
+        if( DEBUG ) Log.d( TAG, "Entering onStop()" );
+    
         tempFUpdaterDisposable.dispose();           // turn off periodic temp updates
         watchdogResetDisposable.dispose();          // stop resetting watchdog timer
         watchdogStatusUpdatesDisposable.dispose();  // stop getting watchdog status updates
         watchdogEnableDisposable.dispose();         // disable watchdog
         super.onStop( );
+    
+        if( DEBUG ) Log.d( TAG, "Exiting onStop()" );
     }
 }

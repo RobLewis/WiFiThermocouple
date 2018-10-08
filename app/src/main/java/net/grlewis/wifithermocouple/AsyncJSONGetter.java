@@ -54,6 +54,8 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
     private URL sourceURL;  // mutable
     private OkHttpClient client;  // created if not passed
     private UUID requestUUID;     // to identify the request that produced result (copied from HTTP Requester)
+    private int successes;
+    private int failures;
     
     private Call savedCall;       // new stuff to implement Disposable
     private boolean disposed;
@@ -65,7 +67,7 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         // conversion to RxJava2 says must implement subscribe(SingleEmitter<T>)
         //
         //    SingleObserver is the subscriber(s). 3 methods: onError, onSubscribe(returns Disposable), onSuccess
-        //    SingleEmitter basically extends SingleObserver (AKA Subscriber) by allowing registration of a Disposable or Cancellable with it?????
+        //    SingleEmitter basically extends SingleObserver (AKA Subscriber) by allowing registration of a Disposable or Cancellable with it
         //        (while "hiding" SingleObserver's onSubscribe(Disposable d), which you aren't supposed to interact with????)
         //    SingleOnSubscribe is a functional interface with a single subscribe() method that receives a SingleEmitter
         //
@@ -87,6 +89,8 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
             //emitter.setCancellable( call::cancel );  // attempt to cancel the call if requester is unsubscribed
             emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
             
+            if( DEBUG ) Log.d( TAG, "About to enqueue JSON request UUID " + requestUUID.toString() );
+            
             savedCall.enqueue( new Callback( ) {
                 // Note callback is made after the response headers are ready. Reading the response body may still block.
                 
@@ -94,13 +98,14 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                 public void onFailure( @NonNull Call call, @NonNull IOException e ) {
                     if( !emitter.tryOnError( new IOException( TAG + ": onFailure Callback while starting JSON request with UUID: "
                             + requestUUID.toString() + ": " + e.getMessage(), e ) ) ) {
-                        Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
+                        Log.d( TAG, "JSON request UUID " + requestUUID.toString()
                                 + " canceled before failure received" );
                     } else {  // Throwable was emitted because sequence still alive
                         disposed = true;  // TODO: right? Error disposes?
                         if( DEBUG ) Log.d( TAG, "onFailure callback for request UUID "
                                 + requestUUID.toString() + "signaled IOException: " + e.getMessage() );
                     }
+                    failures++;
                 }
                 
                 @Override
@@ -110,6 +115,7 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                             emitter.onError( new IOException( TAG + ": JSON request UUID " + requestUUID.toString()
                                     + " failed with HTTP status: " + response.message( ) ) );
                             disposed = true;  // TODO: right?
+                            failures++;
                         } else {  // successful response
                             try {
                                 ResponseBody responseBody = response.body( );
@@ -127,17 +133,20 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                                                 + requestUUID.toString() + "): " + j.getMessage( ) ) );
                                     }
                                     emitter.onSuccess( returnedJSON );
+                                    successes++;
                                 } else {  // content type not JSON
                                     emitter.onError( new JSONException(
                                             TAG + ": Returned content type header (request UUID "
                                                     + requestUUID.toString() + "): is not JSON but " + contentType ) );
+                                    failures++;
                                 }
                             } catch ( IOException e ) {
                                 emitter.onError( new IOException( TAG + ": Error fetching JSON from URL "
                                         + sourceURL.toString( ) + " (request UUID: " + requestUUID.toString() + ")", e ) );
+                                failures++;
                             }
                         }  // else successful response
-                    } else {  // emitter has been disposed
+                    } else {  // emitter has been disposed (TODO: not a success or a failure?)
                         Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
                                 + " subscription disposed before response received" );
                     }
@@ -215,6 +224,7 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         getJSON = Single.create( new JSONGetterOnSubscribe( ) );
         sourceURL = jsonURL;
         requestUUID = requestID;
+        successes = failures = 0;
         client = client == null?               // if client is null
                 httpClient == null?            // and passed httpClient is also null
                         new OkHttpClient( ) :  // create a new default client; if passed httpClient is not null
@@ -284,8 +294,15 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         requestUUID = requestID;
         return this;
     }
+    public AsyncJSONGetter setRequestUUID( ) {  // if no UUID supplied, create a random one
+        requestUUID = UUID.randomUUID();
+        return this;
+    }
     
     public UUID getRequestUUID( ) {return requestUUID; }
+    
+    public int getSuccessCount() { return successes; }
+    public int getFailureCount() { return failures; }
     
 }
 

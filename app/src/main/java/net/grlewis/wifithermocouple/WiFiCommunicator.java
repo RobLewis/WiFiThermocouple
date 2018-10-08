@@ -6,6 +6,7 @@ import android.util.Log;
 import android.util.Pair;
 import android.widget.Toast;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.net.URL;
@@ -87,7 +88,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                     watchdogDisableSingle.request().subscribe();
                     if( DEBUG ) Log.d( TAG, "enableWatchdogObservable disposed to disable watchdog" );
                 } );
-    
+        
         // TODO: does this work?
         if( appInstance.testActivityRef == null ) Log.d( TAG, "appInstance.testActivityRef is null" );  // says it's null
         uiStateModel = ViewModelProviders.of(appInstance.testActivityRef).get( UIStateModel.class );  // NPE
@@ -136,13 +137,27 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     // note AsyncJSONGetter is a Single; this combines the series of Single outputs into an Observable stream
     // TODO: maybe add watchdog status query?
     Observable<JSONObject> tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )  // currently 5 seconds
-            .flatMapSingle( getTempFNow -> tempFGetter.get() )  // combines outputs of Singles into an Observable stream
+            .flatMapSingle( getTempFNow -> tempFGetter.setRequestUUID().get() )  // combines outputs of Singles into an Observable stream
             .doOnNext( jsonF -> {
-                float currentTempF = (float) jsonF.getDouble( "TempF" );
+                
+                float currentTempF;
+                try {
+                    currentTempF = (float) jsonF.getDouble( "TempF" );
+                } catch ( JSONException j ) {
+                    if( DEBUG ) Log.d( TAG, "JSONException on TempF fetch: " + j.getMessage()
+                            + "; JSON: \n" + jsonF.toString( 4 )
+                            + "\nRequest UUID: " + jsonF.optString( "RequestUUID", "(no request UUID in JSON)" ) );
+                    currentTempF = appInstance.pidState.getCurrentVariableValue();  // repeat last value if a problem with new one
+                } finally {
+                }
+                
+                // another idea
+                //currentTempF = (float) jsonF.optDouble( "TempF", appInstance.pidState.getCurrentVariableValue() );  // fallback
+                
                 appInstance.pidState.setCurrentVariableValue( currentTempF );
                 appInstance.testActivityRef.updateTempButtonTextPublisher.onNext( "tempFUpdater set new value: "
                         + String.valueOf( currentTempF ) );
-                
+
 //                if( appInstance.pidState.isEnabled() ) {  // only keep history if PID is running TODO: (?)
 //                    if ( tempHistoryBuffer.remainingCapacity( ) < 1 )
 //                        tempHistoryBuffer.poll( );  // if buffer is full, discard oldest value
@@ -165,10 +180,17 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                 uiStateModel.getCurrentUIState().postValue( uiState );  // can't use .setValue() on a background thread
                 if( DEBUG ) Log.d( TAG, "History queue now contains " + tempHistSize + " values" );
             } )
-            .doOnTerminate( () -> fanControlSingle( false ).request().subscribe(  // if this stops for any reason, shut off fan
-                    response -> { },  // successful OK response to fan shutoff
-                    fanError -> { }// TODO: advise of possible emergency}
-            ) )
+            .doOnTerminate( () -> {
+                if( DEBUG ) Log.d( TAG, "tempFUpdater terminated with " + tempFGetter.getSuccessCount()
+                        + " successes and " + tempFGetter.getFailureCount() + " failures");
+                fanControlSingle( false ).request()
+                        .retry( 5 )  // lots of retries because it's vital
+                        .subscribe(  // if this stops for any reason, shut off fan
+                                response -> { if( DEBUG ) Log.d( TAG, "Successful fan shutoff after tempFUpdater termination"); },  // successful OK response to fan shutoff
+                                fanError -> { if( DEBUG ) Log.d( TAG, "Error shutting off fan (after retries) after tempFUpdater termination: "
+                                        + fanError.getMessage() ); }// TODO: advise of possible emergency}
+                        );
+            })
             .observeOn( AndroidSchedulers.mainThread() );
     
     /*
