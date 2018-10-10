@@ -50,11 +50,14 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     private UIStateModel uiStateModel;
     
+    private UUIDSupplier httpUUIDSupplier;
+    private UUIDSupplier jsonUUIDSupplier;
+    
     
     // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
-    AsyncJSONGetter tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client );
+    AsyncJSONGetter tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, true );  // new UUIDs on subscribe
     
-    AsyncJSONGetter watchdogStatusGetterSingle = new AsyncJSONGetter( WD_STATUS_URL, client );
+    AsyncJSONGetter watchdogStatusGetterSingle = new AsyncJSONGetter( WD_STATUS_URL, client, true );
     
     // enable watchdog timer (dispose to disable)
     Observable<Response> enableWatchdogObservable;
@@ -92,7 +95,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         // TODO: does this work?
         if( appInstance.testActivityRef == null ) Log.d( TAG, "appInstance.testActivityRef is null" );  // says it's null
         uiStateModel = ViewModelProviders.of(appInstance.testActivityRef).get( UIStateModel.class );  // NPE
-
+        
 
 //        enableAndResetWatchdogSubject = PublishSubject.create()
 //        .doOnSubscribe(
@@ -208,11 +211,11 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     AsyncHTTPRequester fanControlSingle( boolean fanState ) {
         if( fanState ) {
             appInstance.appState.setFanState( true );
-            return new AsyncHTTPRequester( FAN_ON_URL, client );
+            return new AsyncHTTPRequester( FAN_ON_URL, client, true );  // trial of auto-generate new UUID per request
         }
         else {
             appInstance.appState.setFanState( false );
-            return new AsyncHTTPRequester( FAN_OFF_URL, client );
+            return new AsyncHTTPRequester( FAN_OFF_URL, client, true );  // trial of auto-generate new UUID per request
         }
     }
     

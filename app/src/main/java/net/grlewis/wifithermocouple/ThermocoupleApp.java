@@ -47,6 +47,9 @@ public class ThermocoupleApp extends Application {
     
     TestActivity testActivityRef;
     
+    UUIDSupplier httpUUIDSupplier;
+    UUIDSupplier jsonUUIDSupplier;
+    
     
     // retrieve the app instance to request access to its instance variables
     public static ThermocoupleApp getSoleInstance() { return sAppInstance; } // can use this to retrieve e.g. the sole rxBleClient
@@ -70,6 +73,10 @@ public class ThermocoupleApp extends Application {
         appState = new ApplicationState();
         pidState = new PIDState();
         bbqController = new BBQController();
+        httpUUIDSupplier = new UUIDSupplier( 0x1000 );  // call like: httpUUIDSupplier.iterator.next();
+        jsonUUIDSupplier = new UUIDSupplier( 0x2000 );
+        
+    
     }
     
     

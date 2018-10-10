@@ -61,6 +61,8 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
     private boolean disposed;
     private Disposable disposable;
     
+    private boolean newIdOnSubscribe = false;  // new to auto-generate ID on each .subscribe
+    
     
     class JSONGetterOnSubscribe implements SingleOnSubscribe<JSONObject> {
         
@@ -77,6 +79,9 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         public void subscribe( final SingleEmitter<JSONObject> emitter ) throws Exception {
             
             if( emitter == null ) throw new NullPointerException( "Can't subscribe with a null SingleEmitter" );
+            
+            if( newIdOnSubscribe ) //requestUUID = UUID.randomUUID();  // make a new ID for each .subscribe()
+                requestUUID = ThermocoupleApp.getSoleInstance().jsonUUIDSupplier.iterator.next();
             
             Request request = new Request.Builder( )
                     .url( sourceURL )
@@ -236,16 +241,26 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
             public void dispose() {
                 if( !savedCall.isExecuted() ) savedCall.cancel();  // TODO: this seems to have fixed crash (but why is .dispose() getting called twice for some requests?
                 disposed = true;
-                if( DEBUG ) Log.d( TAG, ".dispose() called for request ID " + requestID.toString()
+                if( DEBUG ) Log.d( TAG, ".dispose() called for JSON request ID " + requestID.toString()
                         + "; savedCall executed? " + savedCall.isExecuted() );
             }
             @Override
             public boolean isDisposed() {
-                if( DEBUG ) Log.d( TAG, ".isDisposed() returning " + disposed + " for request ID " + requestUUID.toString() );
+                if( DEBUG ) Log.d( TAG, ".isDisposed() returning " + disposed + " for JSON request ID " + requestUUID.toString() );
                 return disposed;
             }
         };  // disposable
     }  // primary constructor
+    
+    
+    // NEW: constructor that specifies that request IDs should be auto-generated on each .subscribe()
+    public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient, boolean generateIDs ) {
+        this( jsonURL, httpClient );
+        newIdOnSubscribe = true;
+    }
+    
+    
+    
     
     // constructor that supplies a random request UUID if we don't
     public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient ) {
@@ -262,6 +277,7 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
             throws Exception {  // (malformed URL exception--subclass of IOException
         this( new URL( jsonURLString ), httpClient );
     }
+    
     
     // after getting the JSON Getter instance, subscribe to this to do the request. It emits JSON
     public Single<JSONObject> get( ) {

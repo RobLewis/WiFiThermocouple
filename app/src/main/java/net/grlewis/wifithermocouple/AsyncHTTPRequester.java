@@ -52,15 +52,17 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
     private static final String TAG = AsyncHTTPRequester.class.getSimpleName( );
     
     private final Single<Response> httpRequest;
-    private URL theURL;  // mutable
-    private OkHttpClient client;
-    private UUID requestUUID;
+    private URL theURL;           // mutable
+    private final OkHttpClient client;
+    private UUID requestUUID;     // mutable
     private int successes;
     private int failures;
     
     private Call savedCall;       // new stuff to implement Disposable
     private boolean disposed;
     private Disposable disposable;
+    
+    private boolean newIdOnSubscribe = false;  // new to auto-generate ID on each .subscribe
     
     
     // Internal class to implement SingleOnSubscribe [and its sole method, void subscribe( SingleEmitter )],
@@ -88,33 +90,39 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         
         @Override  // define what happens when you subscribe to the Single being created, supplying a SingleEmitter
         // Note that Emitter adds setCancellable(), setDisposable(), isDisposed() and tryOnError() to the basic Observer
+        // subscribe() returns void, not a Disposable
         public void subscribe( final SingleEmitter<Response> emitter ) throws Exception {
             
             if( emitter == null ) throw new NullPointerException( TAG + " Can't subscribe with a null SingleEmitter" );
             
+            if( newIdOnSubscribe ) // requestUUID = UUID.randomUUID();
+                requestUUID = ThermocoupleApp.getSoleInstance().httpUUIDSupplier.iterator.next();  // TODO: remove after debugging
+    
             Request request = new Request.Builder( )
                     .url( theURL )
                     .tag( UUID.class, requestUUID )
                     .build( );
             
-            //Call call = client.newCall( request );
             savedCall = client.newCall( request );
             
-            //emitter.setCancellable( call::cancel );  // attempt to cancel the call if requester is unsubscribed
             emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
             
             savedCall.enqueue( new Callback( ) {
                 // Note callback is made after the response headers are ready. Reading the response body may still block.
                 
                 @Override
+                // Called when the request could not be executed due to cancellation, a connectivity problem or timeout.
+                // Because networks can fail during an exchange, it is possible that the remote server accepted the request before the failure.
                 public void onFailure( @NonNull Call call, @NonNull IOException e ) {
                     failures++;
+                    // TODO:  should we set disposed here? Maybe not--retries should be possible, right?
+                    // tryOnError() returns false if sequence has been cancelled by downstream, or otherwise terminated
                     if( !emitter.tryOnError( new IOException( TAG + ": onFailure Callback while starting HTTP request with UUID: "
                             + requestUUID.toString() + ": " + e.getMessage(), e ) ) ) {
                         Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
                                 + " canceled before failure received" );
                     } else {  // Throwable was emitted because sequence still alive
-                        disposed = true;  // TODO: right? Error disposes?
+                        disposed = true;  // TODO: right? Error disposes? Maybe not? Retries should be possible? But Observer cancels on onError()?
                         if( DEBUG ) Log.d( TAG, "onFailure callback for request UUID "
                                 + requestUUID.toString() + "signaled IOException: " + e.getMessage() );
                     }
@@ -123,7 +131,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                 @Override
                 public void onResponse( @NonNull Call call, @NonNull Response response ) {
                     if( !emitter.isDisposed() ) {  // perhaps the request was canceled before response received?
-                        if ( !response.isSuccessful( ) ) {
+                        if ( !response.isSuccessful( ) ) {  // evidently "successful" just means we got an intelligible response
                             emitter.onError( new IOException( TAG + ": HTTP request UUID " + requestUUID.toString()
                                     + " failed with HTTP status: " + response.message( ) ) );
                             failures++;
@@ -163,33 +171,42 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         theURL = targetURL;
         requestUUID = requestID;
         successes = failures = 0;
-        client = client == null?                    // if client is null
-                httpClient == null?                 // and passed httpClient is also null
-                        new OkHttpClient( ) :       // create a new default client; if passed httpClient is not null
-                        httpClient                  // use it
-                :                                   // but if client is not null
-                client;                             // keep it
+        client = httpClient == null?        // if passed httpClient is null
+                new OkHttpClient( ) :       // create a new default client; if not
+                httpClient                  // use the supplied one
+        ;
         disposable = new Disposable() {
             @Override
             public void dispose() {
-                if( !savedCall.isExecuted() ) savedCall.cancel();  // TODO: this seems to have fixed crash (but why is .dispose() getting called twice for some requests?
+                if( !savedCall.isExecuted() ) savedCall.cancel();  // TODO: 'if' seems to have fixed crash (but why is .dispose() getting called twice for some requests?
                 disposed = true;
-                if( DEBUG ) Log.d( TAG, ".dispose() called for request ID " + requestID.toString()
+                if( DEBUG ) Log.d( TAG, ".dispose() called for HTTP request ID " + requestID.toString()
                         + "; savedCall executed? " + savedCall.isExecuted() );
             }
             @Override
             public boolean isDisposed() {
-                if( DEBUG ) Log.d( TAG, ".isDisposed() returning " + disposed + " for request ID " + requestUUID.toString() );
+                if( DEBUG ) Log.d( TAG, ".isDisposed() returning " + disposed + " for HTTP request ID " + requestUUID.toString() );
                 return disposed;
             }
         };  // disposable
     }  // primary constructor
     
     
-    // constructor that supplies a random request UUID if we don't
+    // NEW: constructor that specifies that request IDs should be auto-generated on each .subscribe()
+    public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient, boolean generateIDs ) {
+        this( targetURL, httpClient );
+        newIdOnSubscribe = true;
+    }
+    
+    
+    // constructor that supplies a random request UUID if we don't (client can be null)
     public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient ) {
-        // if no UUID is supplied, generate one
-        this( targetURL, httpClient, UUID.randomUUID() );
+        this( targetURL, httpClient, UUID.randomUUID() );  // if no UUID is supplied, generate one
+    }
+    
+    // constructor that takes just the URL
+    public AsyncHTTPRequester( URL targetURL ) {
+        this( targetURL, null, UUID.randomUUID() );  // create client and request ID
     }
     
     /*
@@ -204,13 +221,15 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
     }
     
     
+    
     // after getting the Requester instance, subscribe to this to send the request. It emits Response
     public Single<Response> request( ) {
         return httpRequest /*.subscribeOn( Schedulers.io( ) )*/;  // probably don't need the Schedulers.io bit (OkHttp3 manages?)
     }
     
     
-    // change source URL: returns the requester so you can chain with .request()
+    
+    // change source URL (and create new request ID): returns the requester so you can chain with .request()
     public AsyncHTTPRequester setURL( URL newURL ) {
         theURL = newURL;
         requestUUID = UUID.randomUUID();

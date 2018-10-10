@@ -199,6 +199,7 @@ public class TestActivity extends AppCompatActivity {
                 );  // TODO: make sure it worked*/
         
         watchdogEnableDisposable = appInstance.wifiCommunicator.enableWatchdogObservable  // dispose to disable
+                .observeOn( AndroidSchedulers.mainThread() )  // added
                 .subscribe( response -> { if( DEBUG ) Log.d( TAG, "Watchdog timer enabled" ); },
                         wdEnableErr -> { if( DEBUG ) Log.d( TAG, "Error enabling watchdog", wdEnableErr );
                             Toast.makeText( TestActivity.this,
