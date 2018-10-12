@@ -1,6 +1,5 @@
 package net.grlewis.wifithermocouple;
 
-import android.app.Activity;
 import android.app.Application;
 import android.content.ComponentName;
 import android.util.Log;
@@ -47,8 +46,8 @@ public class ThermocoupleApp extends Application {
     
     TestActivity testActivityRef;
     
-    UUIDSupplier httpUUIDSupplier;
-    UUIDSupplier jsonUUIDSupplier;
+    SerialUUIDSupplier httpUUIDSupplier;
+    SerialUUIDSupplier jsonUUIDSupplier;
     
     
     // retrieve the app instance to request access to its instance variables
@@ -73,8 +72,8 @@ public class ThermocoupleApp extends Application {
         appState = new ApplicationState();
         pidState = new PIDState();
         bbqController = new BBQController();
-        httpUUIDSupplier = new UUIDSupplier( 0x1000 );  // call like: httpUUIDSupplier.iterator.next();
-        jsonUUIDSupplier = new UUIDSupplier( 0x2000 );
+        httpUUIDSupplier = new SerialUUIDSupplier( 0x1000 );  // call like: httpUUIDSupplier.iterator.next();
+        jsonUUIDSupplier = new SerialUUIDSupplier( 0x2000 );
         
     
     }

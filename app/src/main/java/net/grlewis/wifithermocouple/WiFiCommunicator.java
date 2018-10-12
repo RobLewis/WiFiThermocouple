@@ -1,6 +1,7 @@
 package net.grlewis.wifithermocouple;
 
 import android.annotation.TargetApi;
+import android.arch.core.util.Function;
 import android.arch.lifecycle.ViewModelProviders;
 import android.util.Log;
 import android.util.Pair;
@@ -11,6 +12,7 @@ import org.json.JSONObject;
 
 import java.net.URL;
 import java.util.Date;
+import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -23,6 +25,7 @@ import io.reactivex.subjects.PublishSubject;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
+import static net.grlewis.wifithermocouple.Constants.ANALOG_IN_UPDATE_SECS;
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 import static net.grlewis.wifithermocouple.Constants.DISABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.ENABLE_WD_URL;
@@ -30,6 +33,9 @@ import static net.grlewis.wifithermocouple.Constants.FAN_CONTROL_TIMEOUT_SECS;
 import static net.grlewis.wifithermocouple.Constants.FAN_OFF_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_ON_URL;
 import static net.grlewis.wifithermocouple.Constants.HISTORY_MINUTES;
+import static net.grlewis.wifithermocouple.Constants.HTTP_UUID_UPPER_HALF;
+import static net.grlewis.wifithermocouple.Constants.JSON_UUID_UPPER_HALF;
+import static net.grlewis.wifithermocouple.Constants.READ_ANALOG_URL;
 import static net.grlewis.wifithermocouple.Constants.RESET_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
@@ -50,14 +56,14 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     private UIStateModel uiStateModel;
     
-    private UUIDSupplier httpUUIDSupplier;
-    private UUIDSupplier jsonUUIDSupplier;
+    private Function<URL,UUID> httpUUIDSupplier;
+    private Function<URL,UUID> jsonUUIDSupplier;
     
+    AsyncJSONGetter tempFGetter;
+    AsyncJSONGetter watchdogStatusGetterSingle;
+    AsyncJSONGetter analogInputGetterSingle;
     
-    // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
-    AsyncJSONGetter tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, true );  // new UUIDs on subscribe
-    
-    AsyncJSONGetter watchdogStatusGetterSingle = new AsyncJSONGetter( WD_STATUS_URL, client, true );
+    Observable<Float> analogInObservable;
     
     // enable watchdog timer (dispose to disable)
     Observable<Response> enableWatchdogObservable;
@@ -81,7 +87,23 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     // constructor
     WiFiCommunicator() {
+    
+        // providers of custom UUIDs for JSON and HTTP requests (passed the URL, which we ignore and return serialized UUIDs)
+        httpUUIDSupplier = new SerialUUIDSupplier( HTTP_UUID_UPPER_HALF );  // 0x3000
+        jsonUUIDSupplier = new SerialUUIDSupplier( JSON_UUID_UPPER_HALF );  // 0x4000
         
+    
+        // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
+        tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, jsonUUIDSupplier );  // new UUIDs on subscribe
+        watchdogStatusGetterSingle = new AsyncJSONGetter( WD_STATUS_URL, client, jsonUUIDSupplier );
+        analogInputGetterSingle = new AsyncJSONGetter( READ_ANALOG_URL, client, jsonUUIDSupplier );
+    
+        analogInObservable = Observable.interval( ANALOG_IN_UPDATE_SECS, TimeUnit.SECONDS )
+                .flatMapSingle( tick -> analogInputGetterSingle.get() )
+                .map( json -> (float) json.getDouble( "AnalogVoltsIn" ) )
+                .doOnNext( volts -> appInstance.pidState.setAnalogInVolts( volts ) );
+                
+    
         tempHistoryBuffer = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
         timestampedHistory = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
         
@@ -96,24 +118,16 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         if( appInstance.testActivityRef == null ) Log.d( TAG, "appInstance.testActivityRef is null" );  // says it's null
         uiStateModel = ViewModelProviders.of(appInstance.testActivityRef).get( UIStateModel.class );  // NPE
         
-
-//        enableAndResetWatchdogSubject = PublishSubject.create()
-//        .doOnSubscribe(
-//                disposable -> {
-//
-//                }
-//        )
-        ;
     }
     
     
     
     
     
-    // generic method to get JSON from a URL
+    // generic method to get JSON from a URL (currently unused)
     // passes a callback handler that implements JSONHandler interface (with handleJSON() and handleJSONError() methods)
     void getJSONFromURL( final URL theURL, final JSONHandler jsonHandler ) {  // TODO: will this hold reference to jsonGetter as long as needed?
-        AsyncJSONGetter jsonGetter = new AsyncJSONGetter( theURL, client );
+        AsyncJSONGetter jsonGetter = new AsyncJSONGetter( theURL, client, jsonUUIDSupplier );
         Disposable getJSONDisposable = jsonGetter.get().subscribe(  // subscribe to the Single (uses Schedulers.io)
                 jsonHandler::handleJSON,
                 jsonHandler::handleJSONError
@@ -132,15 +146,13 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     
     
-    
-    
     // Observable to request Temperature JSON (°F)
     // subscribing to this will periodically update the ApplicationState temperature values (C and F)
     // we should be able to ignore the JSON it emits
     // note AsyncJSONGetter is a Single; this combines the series of Single outputs into an Observable stream
     // TODO: maybe add watchdog status query?
     Observable<JSONObject> tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )  // currently 5 seconds
-            .flatMapSingle( getTempFNow -> tempFGetter.setRequestUUID().get() )  // combines outputs of Singles into an Observable stream
+            .flatMapSingle( getTempFNow -> tempFGetter.get() )  // combines outputs of Singles into an Observable stream
             .doOnNext( jsonF -> {
                 
                 float currentTempF;
@@ -211,11 +223,11 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     AsyncHTTPRequester fanControlSingle( boolean fanState ) {
         if( fanState ) {
             appInstance.appState.setFanState( true );
-            return new AsyncHTTPRequester( FAN_ON_URL, client, true );  // trial of auto-generate new UUID per request
+            return new AsyncHTTPRequester( FAN_ON_URL, client, httpUUIDSupplier );  // trial of auto-generate new UUID per request
         }
         else {
             appInstance.appState.setFanState( false );
-            return new AsyncHTTPRequester( FAN_OFF_URL, client, true );  // trial of auto-generate new UUID per request
+            return new AsyncHTTPRequester( FAN_OFF_URL, client, httpUUIDSupplier );  // trial of auto-generate new UUID per request
         }
     }
     
@@ -242,7 +254,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         } else {
             fanURL = FAN_OFF_URL;
         }
-        return new AsyncHTTPRequester( fanURL, eagerClient )
+        return new AsyncHTTPRequester( fanURL, eagerClient, httpUUIDSupplier )  // generate (serialized) UUIDs
                 .request()
                 .retry( 1 )  // new
                 .observeOn( AndroidSchedulers.mainThread() )  // must use UI thread to show a Toast
@@ -266,12 +278,14 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
             fanURL = FAN_OFF_URL;
         }
         appInstance.appState.setFanState( fanState );
-        return new AsyncHTTPRequester( fanURL, eagerClient )
+        return new AsyncHTTPRequester( fanURL, eagerClient, httpUUIDSupplier )  // generate serialized UUIDs
                 .request()
                 .doOnError(
                         errorHandler::accept  // custom error handler TODO: "Consumer" requires API 24 (Android 7)
                 );
     }
+    
+    
     
     
     

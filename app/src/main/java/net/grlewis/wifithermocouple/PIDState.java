@@ -23,6 +23,8 @@ class PIDState implements Cloneable {  // TODO: cloneable?
     private Boolean outputOn;    // is the fan, heater, whatever currently on?
     private Float minOutPct;     // the minimum controlled output percentage that will cause turnon
     
+    private Float analogInVolts;
+    
     
     // constructor
     PIDState() {
@@ -172,10 +174,13 @@ class PIDState implements Cloneable {  // TODO: cloneable?
     Float getMinOutPctg( ) {
         return minOutPct;
     }
-    
     void setMinOutPctg( Float minOutPct ) {
         this.minOutPct = minOutPct;
     }
+    
+    Float getAnalogInVolts( ) { return analogInVolts; }
+    void setAnalogInVolts( Float analogVolts ) { this.analogInVolts = analogVolts; }
+    
     
     @Override  // TODO: serialize before storing?
     protected PIDState clone( ) throws CloneNotSupportedException {
@@ -196,6 +201,8 @@ class PIDState implements Cloneable {  // TODO: cloneable?
         theClone.reset = reset;
         theClone.outputOn = outputOn;
         theClone.minOutPct = minOutPct;
+        
+        theClone.analogInVolts = analogInVolts;
         
         return theClone;
     }

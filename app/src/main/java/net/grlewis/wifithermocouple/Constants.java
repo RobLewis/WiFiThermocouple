@@ -104,6 +104,7 @@ final class Constants {
     static final int HISTORY_MINUTES = 60;     // how many minutes of temp history to buffer
     static final int WATCHDOG_CHECK_SECONDS = 40;
     static final int FAN_CONTROL_TIMEOUT_SECS = 5;  // can't wait around for fan commands TODO: was 2 too short?
+    static final int ANALOG_IN_UPDATE_SECS = 1;
     
     static final String SOFTWARE_VERSION = "0.8";
     static final String HARDWARE_VERSION = "0.8";
@@ -119,6 +120,7 @@ final class Constants {
     static final float DEFAULT_DUTY_CYCLE_PCT = 0f;          // TODO: value?
     static final boolean DEFAULT_PID_ENABLE_STATE = false;   // TODO: value?
     
-    
+    static final long HTTP_UUID_UPPER_HALF = 0x3000;
+    static final long JSON_UUID_UPPER_HALF = 0x4000;
     
 }
