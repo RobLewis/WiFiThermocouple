@@ -38,7 +38,11 @@
 
         <service
             android:name=".ThermocoupleIntentService"
-            android:exported="false"></service>
+            android:exported="false" />
+        <service
+            android:name=".ThermocoupleService"
+            android:enabled="true"
+            android:exported="true"></service>
     </application>
 
 </manifest>

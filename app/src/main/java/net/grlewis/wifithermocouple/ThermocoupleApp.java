@@ -1,8 +1,11 @@
 package net.grlewis.wifithermocouple;
 
+import android.app.Activity;
 import android.app.Application;
 import android.content.ComponentName;
 import android.util.Log;
+
+import io.reactivex.disposables.CompositeDisposable;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
@@ -49,6 +52,10 @@ public class ThermocoupleApp extends Application {
     SerialUUIDSupplier httpUUIDSupplier;
     SerialUUIDSupplier jsonUUIDSupplier;
     
+    CompositeDisposable onPauseDisposables;
+    CompositeDisposable onStopDisposables;
+    
+    
     
     // retrieve the app instance to request access to its instance variables
     public static ThermocoupleApp getSoleInstance() { return sAppInstance; } // can use this to retrieve e.g. the sole rxBleClient
@@ -75,10 +82,33 @@ public class ThermocoupleApp extends Application {
         httpUUIDSupplier = new SerialUUIDSupplier( 0x1000 );  // call like: httpUUIDSupplier.iterator.next();
         jsonUUIDSupplier = new SerialUUIDSupplier( 0x2000 );
         
+        onPauseDisposables = new CompositeDisposable(  );
+        onStopDisposables = new CompositeDisposable(  );
+    
     
     }
     
     
     void setTestActivityRef( TestActivity testActivity ) { testActivityRef = testActivity; }
     
+/*
+    @Override
+    public void registerActivityLifecycleCallbacks( ActivityLifecycleCallbacks callback ) {
+        super.registerActivityLifecycleCallbacks( callback );
+    }
+    
+    
+    class ThermocoupleLifecycleCallbacks implements ActivityLifecycleCallbacks {
+        @Override
+        public void onActivityStopped( Activity activity ) {
+        
+        }
+        // have to implement all the Lifecycle methods and register this with the Application
+        @Override
+        public void onActivityDestroyed( Activity activity ) {
+        
+        }
+    }
+*/
+
 }

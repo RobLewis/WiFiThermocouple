@@ -111,7 +111,7 @@ final class Constants {
     
     // New, for PIDState constructor
     static final float DEFAULT_SETPOINT = 250f;              // TODO: consider °F or °C?
-    static final float DEFAULT_GAIN = 2f;                    // TODO: value?
+    static final float DEFAULT_GAIN = 1f;                    // TODO: value? (started at 2)
     static final float DEFAULT_PROP_COEFF = 16f;             // TODO: value? from AppleScript
     static final float DEFAULT_INT_COEFF = 2f;               // TODO: value?
     static final float DEFAULT_DIFF_COEFF = 3f;              // TODO: value?
@@ -122,5 +122,16 @@ final class Constants {
     
     static final long HTTP_UUID_UPPER_HALF = 0x3000;
     static final long JSON_UUID_UPPER_HALF = 0x4000;
+    
+    // action names that describe tasks that the JobIntentService can perform, e.g. ACTION_FETCH_NEW_ITEMS
+    static final String ACTION_START_TEMP_UPDATES = "net.grlewis.packagename.action.START_TEMP_UPDATES";
+    static final String ACTION_STOP_TEMP_UPDATES = "net.grlewis.packagename.action.STOP_TEMP_UPDATES";
+    static final String ACTION_START_PID = "net.grlewis.packagename.action.START_PID";
+    static final String ACTION_STOP_PID = "net.grlewis.packagename.action.STOP_PID";
+    static final String ACTION_START_BG_SERVICE = "net.grlewis.packagename.action.START_BG_SERVICE";
+    static final String ACTION_STOP_BG_SERVICE = "net.grlewis.packagename.action.STOP_BG_SERVICE";
+    
+    static final int SERVICE_NOTIFICATION_ID = 8266;  // unique id for ongoing background notification
+    
     
 }

@@ -4,10 +4,20 @@ import android.app.IntentService;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.Context;
-import android.support.annotation.NonNull;
 import android.support.v4.app.JobIntentService;
 import android.util.Log;
 
+import org.json.JSONObject;
+
+import java.util.concurrent.TimeUnit;
+
+import io.reactivex.Observable;
+import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.disposables.Disposable;
+import okhttp3.OkHttpClient;
+import okhttp3.Response;
+
+import static net.grlewis.wifithermocouple.Constants.*;
 
 
 
@@ -15,12 +25,24 @@ public class ThermocoupleIntentService extends JobIntentService {
     
     private final static String TAG = ThermocoupleIntentService.class.getSimpleName();
     private final static int JOB_ID = 2018_10_08;    // unique job ID for this Service
-    private final ComponentName thermocoupleComponentName;
+    private ComponentName thermocoupleComponentName;
     
-    // constructor
+    private boolean running;
+    
+    Disposable tempUpdateDisp, watchdogEnableDisp, watchdogResetDisp;
+    CompositeDisposable serviceCompDisp;
+    Observable<Float> tempUpdateObs;
+    AsyncJSONGetter tempGetter;
+    AsyncHTTPRequester watchdogEnabler;
+    AsyncHTTPRequester watchdogResetter;
+    OkHttpClient client;
+    ThermocoupleApp appInstance;
+    Observable<Response> watchdogResetObs;
+    
+    
+    // constructor -- may not be necesssary
     public ThermocoupleIntentService() {
         super( );
-        thermocoupleComponentName = new ComponentName( this, "ThermocoupleIntentService" );
     }
 
 // Auto-created Intent Service stuff
@@ -140,10 +162,7 @@ public class ThermocoupleIntentService extends JobIntentService {
     
     
     // action names that describe tasks that this Service can perform, e.g. ACTION_FETCH_NEW_ITEMS
-    private static final String ACTION_START_TEMP_UPDATES = "net.grlewis.packagename.action.START_TEMP_UPDATES";
-    private static final String ACTION_STOP_TEMP_UPDATES = "net.grlewis.packagename.action.STOP_TEMP_UPDATES";
-    private static final String ACTION_START_PID = "net.grlewis.packagename.action.START_PID";
-    private static final String ACTION_STOP_PID = "net.grlewis.packagename.action.STOP_PID";
+    // (moved to Constants class)
     
     // parameters (Intent extras)
     private static final String EXTRA_SERVICE_UUID  = "net.grlewis.packagename.extra.SERVICE_UUID";
@@ -154,7 +173,21 @@ public class ThermocoupleIntentService extends JobIntentService {
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "onCreate() of ThermocoupleIntentService called");
-        ThermocoupleApp.getSoleInstance().serviceComponentName = thermocoupleComponentName;  // set name to access service with
+        appInstance = ThermocoupleApp.getSoleInstance();
+        thermocoupleComponentName = new ComponentName( this, "ThermocoupleIntentService" );
+        appInstance.serviceComponentName = thermocoupleComponentName;  // set name to access service with
+        
+        client = new OkHttpClient();  //TODO: add eager client
+        serviceCompDisp = new CompositeDisposable( );
+        watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, new SerialUUIDSupplier( 0x1000 ) );
+        watchdogResetter = new AsyncHTTPRequester( RESET_WD_URL, client, new SerialUUIDSupplier( 0x2000 ) );
+        tempGetter = new AsyncJSONGetter( TEMP_F_URL, client, new SerialUUIDSupplier( 0x3000 ) );
+        tempUpdateObs = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )
+                .flatMapSingle( timeToUpdate -> tempGetter.get() )
+                .retry( 2 )
+                .map( tempJSON -> (float) tempJSON.getDouble( "TempF" ) );
+        watchdogResetObs = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )
+                .flatMapSingle( timeToReset -> watchdogResetter.request() );
     }
     
     @Override
@@ -169,7 +202,7 @@ public class ThermocoupleIntentService extends JobIntentService {
     static void enqueueWork( Context context, Intent work ) {
         enqueueWork( context, ThermocoupleIntentService.class, JOB_ID, work );
     }
-    // also
+    // also possible:
     // component is the published ComponentName of the class this work should be dispatched to.
     //public static void enqueueWork(@NonNull Context callerContext, @NonNull ComponentName component, int jobId, @NonNull Intent work) { }
     
@@ -178,9 +211,9 @@ public class ThermocoupleIntentService extends JobIntentService {
     // called on a background thread; upon returning from it the work is considered done:
     // can run indefinitely but may be stopped & rescheduled by Android
     // either next queued work is dispatched or the service is destroyed if nothing left to do
-    // (Gateway might want to never return, normally)
+    // (might want to never return, normally)
     @Override
-    protected void onHandleWork( @NonNull Intent intent ) {
+    protected void onHandleWork( Intent intent ) {
         
         // system already holding a wake lock for us so we can just go
         Log.i(TAG, "Executing work: " + intent + " " + intent.getAction() );
@@ -195,14 +228,22 @@ public class ThermocoupleIntentService extends JobIntentService {
                     handleActionScanService( uuidString );
                     //
                     break;
-    
+                
                 case ACTION_STOP_TEMP_UPDATES:
                     break;
-    
+                
                 case ACTION_START_PID:
                     break;
-    
+                
                 case ACTION_STOP_PID:
+                    break;
+                    
+                case ACTION_START_BG_SERVICE:
+                    startBgService();
+                    break;
+                    
+                case ACTION_STOP_BG_SERVICE:
+                    stopBgService();
                     break;
     
                 default:
@@ -231,8 +272,36 @@ public class ThermocoupleIntentService extends JobIntentService {
     }
     
     
+    // method to start background service
+    // enables temperature updates, watchdog, and watchdog resetting
+    private void startBgService() {
+        // start subscriptions: temp updates, watchdog reset,
+        if( !isStopped() ) {
+            tempUpdateDisp = tempUpdateObs.subscribe(
+                    appInstance.pidState::setCurrentVariableValue
+                    // TODO: handle temp update fetch error
+            );
+            serviceCompDisp.add( tempUpdateDisp );
+            
+            watchdogEnableDisp = watchdogEnabler.request().retry( 5L ).subscribe(
+                    response -> { if( DEBUG ) Log.d( TAG, "Watchdog enabled" ); }
+                    // TODO: handle watchdog enable failure
+            );
+            serviceCompDisp.add( watchdogEnableDisp );
+            
+            watchdogResetDisp = watchdogResetter.request().subscribe(
+                    response -> { if( DEBUG ) Log.d( TAG, "Watchdog reset" ); }
+                    // TODO: handle watchdog reset failure
+            );
+            serviceCompDisp.add( watchdogResetDisp );
+            
+        }
+    }
     
-    
+    private void stopBgService() {
+        // dispose subscriptions
+        serviceCompDisp.clear();
+    }
     
     
 }

@@ -49,7 +49,7 @@ public class TestActivity extends AppCompatActivity {
     Observable<Object> tempUpdateObservable;
     Observable<Object> tempSetObservable;
     //InitialValueObservable<Integer> tempSliderObservable;
-    InitialValueObservable<SeekBarChangeEvent> tempSliderEventObservable;
+    InitialValueObservable<SeekBarChangeEvent> tempSliderEventObservable;  // captures start & stop, not just value
     
     Disposable fanToggleDisposable;
     Disposable pidToggleDisposable;
@@ -153,6 +153,7 @@ public class TestActivity extends AppCompatActivity {
         
         // set initial appState
         // make sure fan is off
+        // TODO: Disposable?
         appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off
                 .retry( 2 )  // try up to 3 times
                 .observeOn( AndroidSchedulers.mainThread() )
@@ -168,6 +169,7 @@ public class TestActivity extends AppCompatActivity {
                         } );
         
         // get initial temperature reading
+        // TODO: Disposable?
         appInstance.wifiCommunicator.tempFGetter.get()
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe( tempJSON -> {
@@ -186,6 +188,7 @@ public class TestActivity extends AppCompatActivity {
                 jsonF -> { },
                 tempErr -> Log.d( TAG, "Error from tempFUpdater: " + tempErr.getMessage() )  // TODO: was this the missing error handler?
         );  // keeps pidState updated too
+        appInstance.onStopDisposables.add( tempFUpdaterDisposable );
         
         
         // enable watchdog timer
@@ -204,8 +207,10 @@ public class TestActivity extends AppCompatActivity {
                         wdEnableErr -> { if( DEBUG ) Log.d( TAG, "Error enabling watchdog", wdEnableErr );
                             Toast.makeText( TestActivity.this,
                                     "Error enabling watchdog: " + wdEnableErr.getMessage(), Toast.LENGTH_SHORT ).show(); });
-        
-        
+        appInstance.onStopDisposables.add( watchdogEnableDisposable );
+    
+    
+    
         // initiate periodic watchdog status checks
         watchdogStatusUpdatesDisposable = appInstance.wifiCommunicator.watchdogStatusUpdates
                 .observeOn( AndroidSchedulers.mainThread() )
@@ -225,10 +230,12 @@ public class TestActivity extends AppCompatActivity {
                         },
                         wdStatusError -> { }  // TODO: error handler
                 );
-        
-        
-        
-        
+        appInstance.onStopDisposables.add( watchdogStatusUpdatesDisposable );
+    
+    
+    
+    
+    // TODO: keep?
         setTempButton.setText( "CURRENT TEMP SETTING: " + appInstance.pidState.getSetPoint().toString() + "°F" );
         //appInstance.bbqController.start();  // don't start ON
         
@@ -236,7 +243,9 @@ public class TestActivity extends AppCompatActivity {
         watchdogResetDisposable = appInstance.wifiCommunicator.watchdogResetObservable.subscribe(
                 response -> { if( DEBUG ) Log.d( TAG, "Watchdog timer reset" ); }
         );  // start resetting watchdog timer periodically
-        
+        appInstance.onStopDisposables.add( watchdogResetDisposable );
+    
+    
         if( DEBUG ) Log.d( TAG, "Exiting onStart()" );
     }
     
@@ -269,7 +278,9 @@ public class TestActivity extends AppCompatActivity {
                             Log.d( TAG, "Error getting fan button click: " + fanToggleErr.getMessage() );
                         }  // TODO (note we get a warning)
                 );
-        
+        appInstance.onPauseDisposables.add( fanToggleDisposable );
+    
+    
         // handle click events for toggle button to enable/disable PID
         pidToggleDisposable = pidToggleObservable
                 .observeOn( AndroidSchedulers.mainThread() )
@@ -295,7 +306,9 @@ public class TestActivity extends AppCompatActivity {
                         pidToggleErr -> { Log.d( TAG, "Error with pidToggleObservable: "
                                 + pidToggleErr.getMessage(), pidToggleErr );}  // TODO
                 );
-        
+        appInstance.onPauseDisposables.add( pidToggleDisposable );
+    
+    
         // handle clicks on the temperature update button (manual update)
         tempUpdateDisposable = tempUpdateObservable.subscribe(
                 click -> appInstance.wifiCommunicator.tempFGetter.get()
@@ -313,8 +326,10 @@ public class TestActivity extends AppCompatActivity {
                                 }
                         )
         );
-        
-        
+        appInstance.onPauseDisposables.add( tempUpdateDisposable );
+    
+    
+    
         tempSliderDisposable = tempSliderEventObservable
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(  // now emits SeekBarChangeEvent
@@ -331,28 +346,38 @@ public class TestActivity extends AppCompatActivity {
                             }
                         }
                 );
+        appInstance.onPauseDisposables.add( tempSliderDisposable );
+    
         fanButtonTextDisposable = fanButtonTextPublisher
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         buttonText -> toggleFanButton.setText( buttonText )
                 );
+        appInstance.onPauseDisposables.add( fanButtonTextDisposable );
+    
         tempButtonTextDisposable = updateTempButtonTextPublisher
                 .observeOn( AndroidSchedulers.mainThread() )  // else can't touch UI
                 .subscribe(
                         buttonText -> updateTempButton.setText( buttonText ),
                         buttTextErr -> Log.d( TAG, "Error trying to receive tempButton text update", buttTextErr )
                 );
+        appInstance.onPauseDisposables.add( tempButtonTextDisposable );
+    
         pidToggleDisposable = pidButtonTextPublisher  // receive and display updates to PID on/off button text
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         buttonText -> togglePIDButton.setText( buttonText )
                 );
+        appInstance.onPauseDisposables.add( pidToggleDisposable );
+    
         setTempButtonTextDisposable = setTempButtonTextPublisher
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         setTempButton::setText
                 );
-        
+        appInstance.onPauseDisposables.add( setTempButtonTextDisposable );
+    
+    
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
         
     }  // onResume
@@ -368,7 +393,11 @@ public class TestActivity extends AppCompatActivity {
         tempSliderDisposable.dispose();
         fanButtonTextDisposable.dispose();
         tempButtonTextDisposable.dispose();
+        pidToggleDisposable.dispose();
         setTempButtonTextDisposable.dispose();
+        
+        appInstance.onPauseDisposables.clear();
+        
         super.onPause( );
         
         if( DEBUG ) Log.d( TAG, "Exiting onPause()" );
@@ -379,9 +408,9 @@ public class TestActivity extends AppCompatActivity {
         if( DEBUG ) Log.d( TAG, "Entering onStop()" );
     
         tempFUpdaterDisposable.dispose();           // turn off periodic temp updates
-        watchdogResetDisposable.dispose();          // stop resetting watchdog timer
-        watchdogStatusUpdatesDisposable.dispose();  // stop getting watchdog status updates
         watchdogEnableDisposable.dispose();         // disable watchdog
+        watchdogStatusUpdatesDisposable.dispose();  // stop getting watchdog status updates
+        watchdogResetDisposable.dispose();          // stop resetting watchdog timer
         super.onStop( );
     
         if( DEBUG ) Log.d( TAG, "Exiting onStop()" );
