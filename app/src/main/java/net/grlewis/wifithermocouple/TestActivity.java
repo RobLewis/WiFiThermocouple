@@ -3,7 +3,13 @@ package net.grlewis.wifithermocouple;
 import android.annotation.SuppressLint;
 import android.arch.lifecycle.Observer;
 import android.arch.lifecycle.ViewModelProviders;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.Binder;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -32,7 +38,7 @@ import io.reactivex.subjects.Subject;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
-public class TestActivity extends AppCompatActivity {
+public class TestActivity extends AppCompatActivity implements ServiceConnection {
     
     static final String TAG = TestActivity.class.getSimpleName();
     
@@ -72,6 +78,8 @@ public class TestActivity extends AppCompatActivity {
     // attempt at ViewModel to save temp history
     private UIStateModel uiStateModel;
     
+    ThermocoupleService thermoServiceRef;
+    ThermocoupleService.LocalBinder thermoBinder;
     
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
@@ -145,7 +153,12 @@ public class TestActivity extends AppCompatActivity {
         if( DEBUG ) Log.d( TAG, "Entering onStart()" );
         
         super.onStart( );
-        
+    
+        // part of Service implementation
+        bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
+        if( !bindService( bindThermoServiceIntent, /*ServiceConnection*/ this, Context.BIND_AUTO_CREATE ) ) // flag: create the service if it's bound
+            throw new RuntimeException( TAG + ": bindService() call in onStart() failed" );
+    
         float startingSetpoint = appInstance.pidState.getSetPoint();  // DEFAULT_SETPOINT constant
         updateTempButtonTextPublisher.onNext( "INITIAL TEMP SETTING: " + startingSetpoint );
         tempSlider.setProgress( Math.round( appInstance.pidState.getSetPoint() ) );
@@ -415,4 +428,32 @@ public class TestActivity extends AppCompatActivity {
     
         if( DEBUG ) Log.d( TAG, "Exiting onStop()" );
     }
+    
+    
+    
+    
+    
+/*---------------------------------SERVICE CONNECTION INTERFACE-----------------------------------*/
+    // Created & used by onStart() in call to bindService()
+    Intent bindThermoServiceIntent; // can pass extra data to the Service if we need to
+    @Override
+    // Here, the IBinder has a getService() method that returns a reference to the Service instance
+    @SuppressWarnings( "static-access" )
+    public void onServiceConnected( ComponentName className, IBinder service ) {
+        Log.d( TAG, "Entering onServiceConnected()" );
+        // We've bound to Service, cast the IBinder and get Service instance
+        thermoBinder = (ThermocoupleService.LocalBinder) service;
+        // (casting it makes compiler aware of existence of getService() method)
+        thermoServiceRef = thermoBinder.getService();
+        if( thermoServiceRef == null ) throw new RuntimeException( TAG
+                + ": onServiceConnected returned null from getService()" );
+        Log.d( TAG, "Finished onServiceConnected()" );
+    }
+    @Override // called when the connection with the service has been unexpectedly disconnected
+    public void onServiceDisconnected( ComponentName name ) {  // component name of the service whose connection has been lost.
+        Log.d( TAG, "Finished onServiceDisconnected()" );
+    }
+/*------------------------------------------------------------------------------------------------*/
+
+
 }

@@ -3,6 +3,7 @@ package net.grlewis.wifithermocouple;
 import android.app.Activity;
 import android.app.Application;
 import android.content.ComponentName;
+import android.content.Intent;
 import android.util.Log;
 
 import io.reactivex.disposables.CompositeDisposable;
@@ -55,6 +56,8 @@ public class ThermocoupleApp extends Application {
     CompositeDisposable onPauseDisposables;
     CompositeDisposable onStopDisposables;
     
+    Intent startServiceIntent;
+    
     
     
     // retrieve the app instance to request access to its instance variables
@@ -84,6 +87,9 @@ public class ThermocoupleApp extends Application {
         
         onPauseDisposables = new CompositeDisposable(  );
         onStopDisposables = new CompositeDisposable(  );
+        
+        startServiceIntent = new Intent( this, ThermocoupleService.class );
+        serviceComponentName = startService( startServiceIntent );
     
     
     }
@@ -110,5 +116,7 @@ public class ThermocoupleApp extends Application {
         }
     }
 */
+
+
 
 }
