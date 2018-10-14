@@ -5,185 +5,207 @@ package net.grlewis.wifithermocouple;
 
 import java.io.Serializable;
 
+import io.reactivex.subjects.BehaviorSubject;
+
 import static net.grlewis.wifithermocouple.Constants.*;
 
 class PIDState implements Cloneable, Serializable {
     
-    private Float setPoint;
-    private Float currentVariableValue;
-    private Float previousVariableValue;
-    private Float gain;
-    private Float propCoeff;
-    private Float intCoeff;
-    private Float diffCoeff;
-    private Boolean intClamped;  // is the integrator term clamped?
-    private Float currentPctg;   // last value of % on time for each period
-    private Float intAccum;      // the accumulated integral term
-    private Float periodSecs;    // seconds for loop repeat interval
-    private Boolean enabled;     // is the PID enabled?
-    private Boolean reset;       // has it been reset?
-    private Boolean outputOn;    // is the fan, heater, whatever currently on?
-    private Float minOutPct;     // the minimum controlled output percentage that will cause turnon
+    private Parameters parameters;
+    public BehaviorSubject<Parameters> pidStatePublisher;
     
-    private Float analogInVolts; // 0.0-1.0 (-1 means not set)
+    class Parameters implements Cloneable, Serializable {
+        
+        private Float setPoint;
+        private Float currentVariableValue;
+        private Float previousVariableValue;
+        private Float gain;
+        private Float propCoeff;
+        private Float intCoeff;
+        private Float diffCoeff;
+        private Boolean intClamped;  // is the integrator term clamped?
+        private Float currentPctg;   // last value of % on time for each period
+        private Float intAccum;      // the accumulated integral term
+        private Float periodSecs;    // seconds for loop repeat interval
+        private Boolean enabled;     // is the PID enabled?
+        private Boolean reset;       // has it been reset?
+        private Boolean outputOn;    // is the fan, heater, whatever currently on?
+        private Float minOutPct;     // the minimum controlled output percentage that will cause turnon
+        
+        private Float analogInVolts; // 0.0-1.0 (-1 means not set)
+        
+        Parameters() {  // constructor to set initial values
+            setPoint = DEFAULT_SETPOINT;  // can't run if we haven't defined this
+            currentVariableValue = 0f;
+            previousVariableValue = 0f;
+            gain = DEFAULT_GAIN;
+            propCoeff = DEFAULT_PROP_COEFF;
+            intCoeff = DEFAULT_INT_COEFF;
+            diffCoeff = DEFAULT_DIFF_COEFF;
+            intClamped = false;
+            currentPctg = 0f;
+            intAccum = 0f;
+            periodSecs = DEFAULT_PERIOD_SECS;
+            enabled = false;
+            reset = true;
+            outputOn = false;
+            minOutPct = DEFAULT_MIN_OUT_PCT;
+            
+            analogInVolts = -1f;
+        }
+        
+        @Override  // don't have to implement because all contents are immutable
+        public Parameters clone() throws CloneNotSupportedException {
+            return (Parameters) super.clone();
+        }
+    }  // class Parameters
+    
     
     
     // constructor
     PIDState() {
-        setPoint = DEFAULT_SETPOINT;  // can't run if we haven't defined this
-        currentVariableValue = 0f;
-        previousVariableValue = 0f;
-        gain = DEFAULT_GAIN;
-        propCoeff = DEFAULT_PROP_COEFF;
-        intCoeff = DEFAULT_INT_COEFF;
-        diffCoeff = DEFAULT_DIFF_COEFF;
-        intClamped = false;
-        currentPctg = 0f;
-        intAccum = 0f;
-        periodSecs = DEFAULT_PERIOD_SECS;
-        enabled = false;
-        reset = true;
-        outputOn = false;
-        minOutPct = DEFAULT_MIN_OUT_PCT;
-        
-        analogInVolts = -1f;
+        parameters = new Parameters();
+        pidStatePublisher = BehaviorSubject.createDefault( parameters );
     }
     
     
     // GETTERS & SETTERS
     
-    // reset controller
-    Boolean isReset( ) {
-        return reset;
-    }
-    void setReset( Boolean reset ) {
-        this.reset = reset;
-    }
-    
-    
     // The PID setpoint
     Float getSetPoint( ) {
-        return setPoint;
+        return parameters.setPoint;
     }
     void set( Float setPoint ) {
-        this.setPoint = setPoint;
+        this.parameters.setPoint = setPoint;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // current value of the controlled variable (i.e., temperature)
     Float getCurrentVariableValue( ) {
-        return currentVariableValue;
+        return parameters.currentVariableValue;
     }
     void setCurrentVariableValue( Float currentVariableValue ) {
-        this.currentVariableValue = currentVariableValue;
+        this.parameters.currentVariableValue = currentVariableValue;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // previous value of the controlled variable (updated on each iteration)
     Float getPreviousVariableValue( ) {
-        return previousVariableValue;
+        return parameters.previousVariableValue;
     }
     void setPreviousVariableValue( Float previousVariableValue ) {
-        this.previousVariableValue = previousVariableValue;
+        this.parameters.previousVariableValue = previousVariableValue;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // overall gain of PID
     Float getGain( ) {
-        return gain;
+        return parameters.gain;
     }
     void setGain( Float gain ) {
-        this.gain = gain;
+        this.parameters.gain = gain;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // coefficient of the proportional term
     Float getPropCoeff( ) {
-        return propCoeff;
+        return parameters.propCoeff;
     }
     void setPropCoeff( Float propCoeff ) {
-        this.propCoeff = propCoeff;
+        this.parameters.propCoeff = propCoeff;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // coefficient of the integral term
     Float getIntCoeff( ) {
-        return intCoeff;
+        return parameters.intCoeff;
     }
     void setIntCoeff( Float intCoeff ) {
-        this.intCoeff = intCoeff;
+        this.parameters.intCoeff = intCoeff;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // coefficient of the differential term
     Float getDiffCoeff( ) {
-        return diffCoeff;
+        return parameters.diffCoeff;
     }
     void setDiffCoeff( Float diffCoeff ) {
-        this.diffCoeff = diffCoeff;
+        this.parameters.diffCoeff = diffCoeff;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // whether the integrator is currently clamped
     Boolean intIsClamped( ) {
-        return intClamped;
+        return parameters.intClamped;
     }
     void setIntClamped( Boolean intClamped ) {
-        this.intClamped = intClamped;
+        this.parameters.intClamped = intClamped;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // most recent % of "full on" of the controlled device
     Float getCurrentPctg( ) {
-        return currentPctg;
+        return parameters.currentPctg;
     }
     void setCurrentPctg( Float currentPctg ) {
-        this.currentPctg = currentPctg;
+        this.parameters.currentPctg = currentPctg;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // current value of the accumulated integral term
     Float getIntAccum( ) {
-        return intAccum;
+        return parameters.intAccum;
     }
     void setIntAccum( Float intAccum ) {
-        this.intAccum = intAccum;
+        this.parameters.intAccum = intAccum;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // current repeat interval in seconds
     Float getPeriodSecs( ) {
-        return periodSecs;
+        return parameters.periodSecs;
     }
     void setPeriodSecs( Float periodSecs ) {
-        this.periodSecs = periodSecs;
+        this.parameters.periodSecs = periodSecs;
+        pidStatePublisher.onNext( parameters );
     }
-    
     
     // whether PID operation is enabled
     Boolean isEnabled( ) {
-        return enabled;
+        return parameters.enabled;
     }
     void setEnabled( Boolean enabled ) {  // TODO: shut heat off when disabling
-        this.enabled = enabled;
+        this.parameters.enabled = enabled;
+        pidStatePublisher.onNext( parameters );
     }
     
+    // reset controller
+    Boolean isReset( ) {
+        return parameters.reset;
+    }
+    void setReset( Boolean reset ) {
+        this.parameters.reset = reset;
+        pidStatePublisher.onNext( parameters );
+    }
     
     // whether the output device (fan, heater, etc.) is currently on or off
-    Boolean outputIsOn( ) { return outputOn; }
+    Boolean outputIsOn( ) { return parameters.outputOn; }
     void setOutputOn( Boolean outOn ) {
-        this.outputOn = outOn;
+        this.parameters.outputOn = outOn;
+        pidStatePublisher.onNext( parameters );
     }
     
-    Float getMinOutPctg( ) {
-        return minOutPct;
-    }
+    Float getMinOutPctg( ) { return parameters.minOutPct; }
     void setMinOutPctg( Float minOutPct ) {
-        this.minOutPct = minOutPct;
+        this.parameters.minOutPct = minOutPct;
+        pidStatePublisher.onNext( parameters );
     }
     
-    Float getAnalogInVolts( ) { return analogInVolts; }
-    void setAnalogInVolts( Float analogVolts ) { this.analogInVolts = analogVolts; }
+    Float getAnalogInVolts( ) { return parameters.analogInVolts; }
+    void setAnalogInVolts( Float analogVolts ) {
+        this.parameters.analogInVolts = analogVolts;
+        pidStatePublisher.onNext( parameters );
+    }
     
     
     @Override
@@ -194,7 +216,7 @@ class PIDState implements Cloneable, Serializable {
     // (one source indicated this method should return Object (cast to PIDState))
     public PIDState clone( ) throws CloneNotSupportedException {
         PIDState theClone = (PIDState) super.clone();  // Object.clone() returns an Object
-        
+
 //  Since boxed primitives are immutable, this apparently is not necessary:
 //        theClone.setPoint = Float.valueOf( setPoint );  // just copying references? will we get NPE?
 //        theClone.currentVariableValue = Float.valueOf( currentVariableValue );
@@ -216,7 +238,4 @@ class PIDState implements Cloneable, Serializable {
         
         return theClone;
     }
-    
-    
-    
 }
