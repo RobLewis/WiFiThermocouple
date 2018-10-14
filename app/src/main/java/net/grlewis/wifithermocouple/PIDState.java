@@ -13,23 +13,24 @@ class PIDState implements Cloneable, Serializable {
     
     private Parameters parameters;
     public BehaviorSubject<Parameters> pidStatePublisher;
+    private boolean publishChanges;
     
     class Parameters implements Cloneable, Serializable {
         
-        private Float setPoint;
-        private Float currentVariableValue;
+         Float setPoint;
+         Float currentVariableValue;
         private Float previousVariableValue;
         private Float gain;
         private Float propCoeff;
         private Float intCoeff;
         private Float diffCoeff;
-        private Boolean intClamped;  // is the integrator term clamped?
+         Boolean intClamped;  // is the integrator term clamped?
         private Float currentPctg;   // last value of % on time for each period
         private Float intAccum;      // the accumulated integral term
         private Float periodSecs;    // seconds for loop repeat interval
-        private Boolean enabled;     // is the PID enabled?
+         Boolean enabled;     // is the PID enabled?
         private Boolean reset;       // has it been reset?
-        private Boolean outputOn;    // is the fan, heater, whatever currently on?
+         Boolean outputOn;    // is the fan, heater, whatever currently on?
         private Float minOutPct;     // the minimum controlled output percentage that will cause turnon
         
         private Float analogInVolts; // 0.0-1.0 (-1 means not set)
@@ -42,7 +43,7 @@ class PIDState implements Cloneable, Serializable {
             propCoeff = DEFAULT_PROP_COEFF;
             intCoeff = DEFAULT_INT_COEFF;
             diffCoeff = DEFAULT_DIFF_COEFF;
-            intClamped = false;
+            intClamped = true;  // TODO: better?
             currentPctg = 0f;
             intAccum = 0f;
             periodSecs = DEFAULT_PERIOD_SECS;
@@ -66,10 +67,19 @@ class PIDState implements Cloneable, Serializable {
     PIDState() {
         parameters = new Parameters();
         pidStatePublisher = BehaviorSubject.createDefault( parameters );
+        publishChanges = true;  // by default, publish changes
     }
     
     
     // GETTERS & SETTERS
+    
+    // publishing control
+    public boolean publishingChanges( ) {
+        return publishChanges;
+    }
+    public void setPublishChanges( boolean publishChanges ) {
+        this.publishChanges = publishChanges;
+    }
     
     // The PID setpoint
     Float getSetPoint( ) {
@@ -96,6 +106,10 @@ class PIDState implements Cloneable, Serializable {
     void setPreviousVariableValue( Float previousVariableValue ) {
         this.parameters.previousVariableValue = previousVariableValue;
         pidStatePublisher.onNext( parameters );
+    }
+    void updatePreviousVariableValue( ) {  // sets it equal to CurrentVariableValue (FIXME: avoiding a crash?)
+        this.parameters.previousVariableValue = this.parameters.currentVariableValue;
+        //pidStatePublisher.onNext( parameters );  // TODO: do we need this?
     }
     
     // overall gain of PID

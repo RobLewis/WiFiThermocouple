@@ -79,7 +79,7 @@ public class ThermocoupleService extends Service {
         
         appInstance = ThermocoupleApp.getSoleInstance();
         
-        
+        serviceCompositeDisp = new CompositeDisposable(  );  // TODO; does this fix NPE?
     
         // create Handler
         pidHandlerThread = new HandlerThread( "PIDHandlerThread" );
@@ -128,7 +128,7 @@ public class ThermocoupleService extends Service {
                                 + "watchdogEnableDisp = " + watchdogEnableDisp.toString() );
                     }
             );
-            serviceCompositeDisp.add( watchdogEnableDisp );
+            if( watchdogEnableDisp != null ) serviceCompositeDisp.add( watchdogEnableDisp );  //FIXME: is this the problem?
             
             // now start periodic resets of the watchdog
             watchdogFeedingDisp = watchdogIntervalFeeder.subscribe(
@@ -139,7 +139,7 @@ public class ThermocoupleService extends Service {
             
             // now start temperature updates
             tempUpdateDisp = tempIntervalUpdater.subscribe(
-                    appInstance.pidState::setCurrentVariableValue,
+                    appInstance.bbqController::setCurrentVariableValue,  // FIXME: was pidState.
                     tempErr -> { if( DEBUG ) Log.d( TAG, "Error updating temp: " + tempErr ); }
             );
             serviceCompositeDisp.add( tempUpdateDisp );
@@ -158,9 +158,11 @@ public class ThermocoupleService extends Service {
         return START_STICKY;  // keep it running
     }
     
-    
-    
-    
+    @Override
+    public void onDestroy( ) {
+        serviceCompositeDisp.clear();   //  kill all the subscriptions
+        super.onDestroy( );
+    }
     
     /*------------------------------- START OF SERVICE BINDING STUFF ---------------------------------*/
     // Binder given to clients for service--returns this instance of the Service class

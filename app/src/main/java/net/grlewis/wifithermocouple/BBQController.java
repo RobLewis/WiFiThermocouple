@@ -16,12 +16,12 @@ class BBQController implements PIDController {
     
     // PID parameters & variables are in pidState
     
-    private float proportionalTerm;
-    private float integralTerm;
+    //private float proportionalTerm;
+    //private float integralTerm;
     private boolean integralClamped;
-    private float differentialTerm;
+    //private float differentialTerm;
     private float outputPercent;
-    private float error;
+    //private float error;
     
     private Handler pidHandler;
     final PIDLoopRunnable pidLoopRunnable;
@@ -36,7 +36,7 @@ class BBQController implements PIDController {
     BBQController( Handler newHandler ) {
         appInstance = ThermocoupleApp.getSoleInstance();
         pidState = appInstance.pidState;
-        testActivityRef = appInstance.testActivityRef;
+        testActivityRef = appInstance.testActivityRef;  // TODO: need?
         pidHandler = newHandler;
         pidLoopRunnable = new PIDLoopRunnable( );
         pidState.set( DEFAULT_SETPOINT );  // need some defined setpoint or won't start
@@ -51,8 +51,12 @@ class BBQController implements PIDController {
     
     @Override  // OK
     public synchronized void set( Float setPoint ) {  // set it null to indicate uninitialized?
+        pidState.setPublishChanges( false );  // temporarily turn off publishing
         pidState.set( setPoint );
-        pidState.setReset( false );      // TODO: can it run with just this value set?
+        pidState.setIntClamped( true );  // TODO: shouldn't we set these too?
+        pidState.setIntAccum( 0f );
+        pidState.setPublishChanges( true );  // re-enable
+        pidState.setReset( false );
     }
     
     @Override  // OK
@@ -68,13 +72,15 @@ class BBQController implements PIDController {
             if( DEBUG ) Log.d( TAG, "Can't start PID" );
             return false;
         }
+        pidState.setPublishChanges( false );
         pidState.setEnabled( true );
         pidState.setReset( false );
-        pidState.setIntClamped( false );
+        pidState.setIntClamped( true );
         pidState.setIntAccum( 0f );
-        pidState.setPreviousVariableValue( 0f );  // TODO: right?
-        pidHandler.post( pidLoopRunnable );  // start the loop TODO: anything else needed before we start?
-        if( DEBUG ) Log.d( TAG, "start() completed successfully(?)" );
+        pidState.setPublishChanges( true );
+        pidState.setPreviousVariableValue( pidState.getCurrentVariableValue() );  // TODO: right?
+        //pidHandler.post( pidLoopRunnable );  // start the loop TODO: anything else needed before we start?
+        if( DEBUG ) Log.d( TAG, "start() completed successfully(?), skipping .post()" );
         return true;
     }
     
@@ -174,25 +180,38 @@ class BBQController implements PIDController {
     public class PIDLoopRunnable implements Runnable {
         
         final String TAG = PIDLoopRunnable.class.getSimpleName();
+        int iteration;  // holds > 600 years of 10-second cycles
+        
+        float error, proportionalTerm, integralTerm, differentialTerm, outputPercent;
+        boolean clamped;
         
         public void run() {
             
-            if( DEBUG ) Log.d( TAG, "Entering PID Control Loop; temp = " + pidState.getCurrentVariableValue()
+            iteration++;
+            
+            if( DEBUG ) Log.d( TAG, "Entering PID Control Loop iteration " + iteration + "; temp = " + pidState.getCurrentVariableValue()
                     + " setpoint = " + pidState.getSetPoint() );
+            
             
             //if( pidState.isEnabled() ) {
             // schedule next loop run
             // in Service implementation, maybe let it run all the time but only operate the heater if enabled.
             pidHandler.postDelayed( this, Math.round( pidState.getPeriodSecs() * 1000d ) );  // rounding double returns long
             
+            
             error = BBQController.this.getError();  // odd choice of error sign  ('BBQController.this' isn't really needed)
             proportionalTerm = error * pidState.getPropCoeff();
+            integralTerm = pidState.getIntAccum();
             if( !pidState.intIsClamped() ) {
                 integralTerm += error * pidState.getIntCoeff();
             }
+            { pidState.setPublishChanges( false );
+                pidState.setIntAccum( integralTerm );  // FIXME: does this take care of int accum not updating?
+                pidState.setPublishChanges( true ); }
             differentialTerm = ( pidState.getCurrentVariableValue() - pidState.getPreviousVariableValue() )
                     * pidState.getDiffCoeff();
-            pidState.setPreviousVariableValue( pidState.getCurrentVariableValue() );
+            pidState.updatePreviousVariableValue();  // set Previous value equal to Current value (doesn't publish)
+            //pidState.setPreviousVariableValue( pidState.getCurrentVariableValue() );  // FIXME: was crashing (do to publishing, somehow)
             
             outputPercent = pidState.getGain() * (proportionalTerm + integralTerm - differentialTerm);
             
