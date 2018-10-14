@@ -80,6 +80,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     
     ThermocoupleService thermoServiceRef;
     ThermocoupleService.LocalBinder thermoBinder;
+    ComponentName serviceComponentName;
     
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
@@ -156,8 +157,11 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     
         // part of Service implementation
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
-        if( !bindService( bindThermoServiceIntent, /*ServiceConnection*/ this, Context.BIND_AUTO_CREATE ) ) // flag: create the service if it's bound
+        if( !bindService( bindThermoServiceIntent, /*ServiceConnection interface*/ this, Context.BIND_AUTO_CREATE ) ) // flag: create the service if it's bound
             throw new RuntimeException( TAG + ": bindService() call in onStart() failed" );
+        serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // bind to it AND start it
+        if( DEBUG ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toString() );  // looks OK
+    
     
         float startingSetpoint = appInstance.pidState.getSetPoint();  // DEFAULT_SETPOINT constant
         updateTempButtonTextPublisher.onNext( "INITIAL TEMP SETTING: " + startingSetpoint );

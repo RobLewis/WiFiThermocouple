@@ -3,9 +3,11 @@ package net.grlewis.wifithermocouple;
 // Class to store current PID appState and to use for a library of states
 // We're using objects so the null state means "undefined"
 
+import java.io.Serializable;
+
 import static net.grlewis.wifithermocouple.Constants.*;
 
-class PIDState implements Cloneable {  // TODO: cloneable?
+class PIDState implements Cloneable, Serializable {  // TODO: cloneable?
     
     private Float setPoint;
     private Float currentVariableValue;
@@ -23,7 +25,7 @@ class PIDState implements Cloneable {  // TODO: cloneable?
     private Boolean outputOn;    // is the fan, heater, whatever currently on?
     private Float minOutPct;     // the minimum controlled output percentage that will cause turnon
     
-    private Float analogInVolts;
+    private Float analogInVolts; // 0.0-1.0 (-1 means not set)
     
     
     // constructor
@@ -43,6 +45,8 @@ class PIDState implements Cloneable {  // TODO: cloneable?
         reset = true;
         outputOn = false;
         minOutPct = DEFAULT_MIN_OUT_PCT;
+        
+        analogInVolts = -1f;
     }
     
     
@@ -186,23 +190,23 @@ class PIDState implements Cloneable {  // TODO: cloneable?
     protected PIDState clone( ) throws CloneNotSupportedException {
         PIDState theClone = new PIDState();
         
-        theClone.setPoint = setPoint;  // just copying references? will we get NPE?
-        theClone.currentVariableValue = currentVariableValue;
-        theClone.previousVariableValue = previousVariableValue;
-        theClone.gain = gain;
-        theClone.propCoeff = propCoeff;
-        theClone.intCoeff = intCoeff;
-        theClone.diffCoeff = diffCoeff;
-        theClone.intClamped = intClamped;
-        theClone.currentPctg = currentPctg ;
-        theClone.intAccum = intAccum;
-        theClone.periodSecs = periodSecs;
-        theClone.enabled = enabled;
-        theClone.reset = reset;
-        theClone.outputOn = outputOn;
-        theClone.minOutPct = minOutPct;
+        theClone.setPoint = Float.valueOf( setPoint );  // just copying references? will we get NPE?
+        theClone.currentVariableValue = Float.valueOf( currentVariableValue );
+        theClone.previousVariableValue = Float.valueOf( previousVariableValue );
+        theClone.gain = Float.valueOf( gain );
+        theClone.propCoeff = Float.valueOf( propCoeff );
+        theClone.intCoeff = Float.valueOf( intCoeff );
+        theClone.diffCoeff = Float.valueOf( diffCoeff );
+        theClone.intClamped = Boolean.valueOf( intClamped );
+        theClone.currentPctg = Float.valueOf( currentPctg ) ;
+        theClone.intAccum = Float.valueOf( intAccum );
+        theClone.periodSecs = Float.valueOf( periodSecs );
+        theClone.enabled = Boolean.valueOf( enabled );
+        theClone.reset = Boolean.valueOf( reset );
+        theClone.outputOn = Boolean.valueOf( outputOn );
+        theClone.minOutPct = Float.valueOf( minOutPct );
         
-        theClone.analogInVolts = analogInVolts;
+        theClone.analogInVolts = Float.valueOf( analogInVolts );
         
         return theClone;
     }

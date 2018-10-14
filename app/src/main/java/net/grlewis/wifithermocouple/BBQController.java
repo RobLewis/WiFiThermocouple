@@ -24,7 +24,7 @@ class BBQController implements PIDController {
     private float error;
     
     private final Handler pidHandler;
-    private final PIDLoopRunnable pidLoopRunnable;
+    final PIDLoopRunnable pidLoopRunnable;
     
     
     // constructor
@@ -166,7 +166,7 @@ class BBQController implements PIDController {
     
     
     
-    class PIDLoopRunnable implements Runnable {
+    public class PIDLoopRunnable implements Runnable {
         
         final String TAG = PIDLoopRunnable.class.getSimpleName();
         

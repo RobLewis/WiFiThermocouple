@@ -88,8 +88,9 @@ public class ThermocoupleApp extends Application {
         onPauseDisposables = new CompositeDisposable(  );
         onStopDisposables = new CompositeDisposable(  );
         
-        startServiceIntent = new Intent( this, ThermocoupleService.class );
-        serviceComponentName = startService( startServiceIntent );
+//        this probably doesn't work because the Service hasn''t been created yet'
+//        startServiceIntent = new Intent( this, ThermocoupleService.class );
+//        serviceComponentName = startService( startServiceIntent );
     
     
     }
