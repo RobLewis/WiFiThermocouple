@@ -7,7 +7,7 @@ import java.io.Serializable;
 
 import static net.grlewis.wifithermocouple.Constants.*;
 
-class PIDState implements Cloneable, Serializable {  // TODO: cloneable?
+class PIDState implements Cloneable, Serializable {
     
     private Float setPoint;
     private Float currentVariableValue;
@@ -186,27 +186,33 @@ class PIDState implements Cloneable, Serializable {  // TODO: cloneable?
     void setAnalogInVolts( Float analogVolts ) { this.analogInVolts = analogVolts; }
     
     
-    @Override  // TODO: serialize before storing?
-    protected PIDState clone( ) throws CloneNotSupportedException {
-        PIDState theClone = new PIDState();
+    @Override
+    // If all you do is implement Cloneable, only subclasses and members of the same package
+    // will be able to invoke clone() on the object. To enable any class in any package
+    // to access the clone() method, you have to override it and declare it public
+    // So this whole thing (except 'implements Cloneable') may be unnecessary.
+    // (one source indicated this method should return Object (cast to PIDState))
+    public PIDState clone( ) throws CloneNotSupportedException {
+        PIDState theClone = (PIDState) super.clone();  // Object.clone() returns an Object
         
-        theClone.setPoint = Float.valueOf( setPoint );  // just copying references? will we get NPE?
-        theClone.currentVariableValue = Float.valueOf( currentVariableValue );
-        theClone.previousVariableValue = Float.valueOf( previousVariableValue );
-        theClone.gain = Float.valueOf( gain );
-        theClone.propCoeff = Float.valueOf( propCoeff );
-        theClone.intCoeff = Float.valueOf( intCoeff );
-        theClone.diffCoeff = Float.valueOf( diffCoeff );
-        theClone.intClamped = Boolean.valueOf( intClamped );
-        theClone.currentPctg = Float.valueOf( currentPctg ) ;
-        theClone.intAccum = Float.valueOf( intAccum );
-        theClone.periodSecs = Float.valueOf( periodSecs );
-        theClone.enabled = Boolean.valueOf( enabled );
-        theClone.reset = Boolean.valueOf( reset );
-        theClone.outputOn = Boolean.valueOf( outputOn );
-        theClone.minOutPct = Float.valueOf( minOutPct );
-        
-        theClone.analogInVolts = Float.valueOf( analogInVolts );
+//  Since boxed primitives are immutable, this apparently is not necessary:
+//        theClone.setPoint = Float.valueOf( setPoint );  // just copying references? will we get NPE?
+//        theClone.currentVariableValue = Float.valueOf( currentVariableValue );
+//        theClone.previousVariableValue = Float.valueOf( previousVariableValue );
+//        theClone.gain = Float.valueOf( gain );
+//        theClone.propCoeff = Float.valueOf( propCoeff );
+//        theClone.intCoeff = Float.valueOf( intCoeff );
+//        theClone.diffCoeff = Float.valueOf( diffCoeff );
+//        theClone.intClamped = Boolean.valueOf( intClamped );
+//        theClone.currentPctg = Float.valueOf( currentPctg ) ;
+//        theClone.intAccum = Float.valueOf( intAccum );
+//        theClone.periodSecs = Float.valueOf( periodSecs );
+//        theClone.enabled = Boolean.valueOf( enabled );
+//        theClone.reset = Boolean.valueOf( reset );
+//        theClone.outputOn = Boolean.valueOf( outputOn );
+//        theClone.minOutPct = Float.valueOf( minOutPct );
+//
+//        theClone.analogInVolts = Float.valueOf( analogInVolts );
         
         return theClone;
     }

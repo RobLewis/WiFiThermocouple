@@ -23,16 +23,21 @@ class BBQController implements PIDController {
     private float outputPercent;
     private float error;
     
-    private final Handler pidHandler;
+    private Handler pidHandler;
     final PIDLoopRunnable pidLoopRunnable;
     
     
-    // constructor
+    // constructor that makes a new Handler
     BBQController( ) {
+        this( new Handler( ) );
+    }
+    
+    // constructor that allows supplying a Handler
+    BBQController( Handler newHandler ) {
         appInstance = ThermocoupleApp.getSoleInstance();
         pidState = appInstance.pidState;
         testActivityRef = appInstance.testActivityRef;
-        pidHandler = new Handler( );
+        pidHandler = newHandler;
         pidLoopRunnable = new PIDLoopRunnable( );
         pidState.set( DEFAULT_SETPOINT );  // need some defined setpoint or won't start
     }
@@ -175,48 +180,57 @@ class BBQController implements PIDController {
             if( DEBUG ) Log.d( TAG, "Entering PID Control Loop; temp = " + pidState.getCurrentVariableValue()
                     + " setpoint = " + pidState.getSetPoint() );
             
+            //if( pidState.isEnabled() ) {
+            // schedule next loop run
+            // in Service implementation, maybe let it run all the time but only operate the heater if enabled.
+            pidHandler.postDelayed( this, Math.round( pidState.getPeriodSecs() * 1000d ) );  // rounding double returns long
+            
+            error = BBQController.this.getError();  // odd choice of error sign  ('BBQController.this' isn't really needed)
+            proportionalTerm = error * pidState.getPropCoeff();
+            if( !pidState.intIsClamped() ) {
+                integralTerm += error * pidState.getIntCoeff();
+            }
+            differentialTerm = ( pidState.getCurrentVariableValue() - pidState.getPreviousVariableValue() )
+                    * pidState.getDiffCoeff();
+            pidState.setPreviousVariableValue( pidState.getCurrentVariableValue() );
+            
+            outputPercent = pidState.getGain() * (proportionalTerm + integralTerm - differentialTerm);
+            
+            // clamped if output is out of range and the integral term and error have the same sign
+            pidState.setIntClamped( (outputPercent > 100f || outputPercent < 0f) && ( (integralTerm * error) > 0f) );
+            
+            // probably don't want to manipulate UI here for Service version
+            //appInstance.testActivityRef.pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped()?
+            //        "PID is enabled (clamped)" : "PID is enabled" );
+            
+            outputPercent = outputPercent < 0f? 0f : outputPercent;
+            outputPercent = outputPercent > 100f? 100f : outputPercent;
+            pidState.setCurrentPctg( outputPercent );
+            
+            // actually do output control only if PID is enabled and % is > minimum that we act on
             if( pidState.isEnabled() ) {
-                // schedule next loop run
-                pidHandler.postDelayed( this, Math.round( pidState.getPeriodSecs() * 1000d ) );  // rounding double returns long
-                
-                error = BBQController.this.getError();  // odd choice of error sign  ('BBQController.this' isn't really needed)
-                proportionalTerm = error * pidState.getPropCoeff();
-                if( !pidState.intIsClamped() ) {
-                    integralTerm += error * pidState.getIntCoeff();
-                }
-                differentialTerm = ( pidState.getCurrentVariableValue() - pidState.getPreviousVariableValue() )
-                        * pidState.getDiffCoeff();
-                pidState.setPreviousVariableValue( pidState.getCurrentVariableValue() );
-                
-                outputPercent = pidState.getGain() * (proportionalTerm + integralTerm - differentialTerm);
-                
-                // clamped if output is out of range and the integral term and error have the same sign
-                pidState.setIntClamped( (outputPercent > 100f || outputPercent < 0f) && ( (integralTerm * error) > 0f) );
-                appInstance.testActivityRef.pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped()?
-                        "PID is enabled (clamped)" : "PID is enabled" );
-                
-                outputPercent = outputPercent < 0f? 0f : outputPercent;
-                outputPercent = outputPercent > 100f? 100f : outputPercent;
-                pidState.setCurrentPctg( outputPercent );
-                
-                if( outputPercent >= pidState.getMinOutPctg() ) {
-                    pidHandler.post( () ->  appInstance.wifiCommunicator.fanControlWithWarning( true ).subscribe(
-                            response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN ON" )
+                if ( outputPercent >= pidState.getMinOutPctg( ) ) {  // want to enable output
+                    pidHandler.post( ( ) -> appInstance.wifiCommunicator.fanControlWithWarning( true ).subscribe(
+                            //response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN ON" )
+                            response -> pidState.setOutputOn( true )
                             // TODO: error handler?
                     ) );
-                    if( outputPercent < 100f ) pidHandler.postDelayed(
-                            () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
-                                    response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
-                            ),  // TODO: error handler?
-                            (long)(pidState.getPeriodSecs() * 1000f * outputPercent/100f) );
-                } else {  // outputPercent < MIN_OUTPUT_PCT -- turn fan off
-                    pidHandler.post( () -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
-                            response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" ) ) );
-                            // TODO: error handler?
+                    if ( outputPercent < 100f ) { // schedule a turnoff if <100%
+                        pidHandler.postDelayed(
+                                ( ) -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
+                                        //response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
+                                        response -> pidState.setOutputOn( false )
+                                ),  // TODO: error handler?
+                                (long) (pidState.getPeriodSecs( ) * 1000f * outputPercent / 100f) );  // delay time
+                    }
+                } else {  // outputPercent < MIN_OUTPUT_PCT -- turn fan off just to be safe
+                    pidHandler.post( ( ) -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
+                            //response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" ) ) );
+                            response -> pidState.setOutputOn( false ) ) );
+                    // TODO: error handler?
                 }
-            }  else { // disabled
-                appInstance.testActivityRef.pidButtonTextPublisher.onNext( "PID is disabled" );
-            }
+            }  // if PID is enabled
+            
             if( DEBUG ) Log.d( TAG, "Exiting PID Control Loop with outputPercent = " + outputPercent
                     + ", error = " + error + ", integral term = " + integralTerm );
         }  // .run()

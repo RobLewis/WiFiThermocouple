@@ -78,8 +78,6 @@ public class ThermocoupleService extends Service {
         super.onCreate( );
         
         appInstance = ThermocoupleApp.getSoleInstance();
-        bbqController = new BBQController();
-        pidLoopRunnable = bbqController.new PIDLoopRunnable();
         
         
     
@@ -88,7 +86,8 @@ public class ThermocoupleService extends Service {
         pidHandlerThread.start();
         pidLooper = pidHandlerThread.getLooper();
         pidHandler = new Handler( pidLooper );
-        //pidHandler = Handler.createAsyvc( pidLooper );  // API 28
+        //pidHandler = Handler.createAsync( pidLooper );  // API 28 (no VBL sync)
+        bbqController = new BBQController( pidHandler );  // bbqController.pidLoopRunnable should be created
         
         client = new OkHttpClient();
         
@@ -146,10 +145,9 @@ public class ThermocoupleService extends Service {
             serviceCompositeDisp.add( tempUpdateDisp );
             
             
-            // start the BBQ Controller loop
-            pidHandler.post( bbqController.pidLoopRunnable );
+            // start the BBQ Controller loop (we think it's fixed to not change UI and run all the time)
+            pidHandler.postDelayed( bbqController.pidLoopRunnable, 2000L );  // give it a couple seconds
             
-            //pidHandler.post(  )
             
             
         } else {  // this is a restart
