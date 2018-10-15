@@ -8,6 +8,14 @@ import org.json.JSONObject;
 import java.net.MalformedURLException;
 import java.net.URL;
 
+/*
+* Tracking Request UUID ranges:
+*     0x1000: watchdog enabler
+*     0x2000: watchdog feeder
+*     0x3000: temperature updater
+*
+* */
+
 final class Constants {
     
     static final String TAG = Constants.class.getSimpleName();

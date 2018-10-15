@@ -80,7 +80,7 @@ public class ThermocoupleService extends Service {
         appInstance = ThermocoupleApp.getSoleInstance();
         
         serviceCompositeDisp = new CompositeDisposable(  );  // TODO; does this fix NPE?
-    
+        
         // create Handler
         pidHandlerThread = new HandlerThread( "PIDHandlerThread" );
         pidHandlerThread.start();
@@ -97,8 +97,15 @@ public class ThermocoupleService extends Service {
                 .flatMapSingle( resetTime -> watchdogFeeder.request().retry( 5L ) );
         tempUpdater = new AsyncJSONGetter( TEMP_F_URL, client, new SerialUUIDSupplier( 0x3000 ) );
         tempIntervalUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )
-                .flatMapSingle( updateTime -> tempUpdater.get().retry( 2L ) )
-                .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ) );
+                .flatMapSingle( updateTime -> tempUpdater.get().retry( 9L ) )
+                .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ) )
+                .retry( 9L )
+                .onErrorReturn( error -> {
+                    if( DEBUG ) Log.d( TAG, "****** Last resort return of previous temp value for error "
+                            + error.getMessage() + ": " + bbqController.getCurrentVariableValue() + " ******");
+                    return bbqController.getCurrentVariableValue();
+                })   // if all else fails, repeat last value
+                .doOnTerminate( () -> Log.d( TAG, "****** tempIntervalUpdater has been terminated ******" ) );  // occasional errors in JSON were apparently canceling sub
         
     }
     
@@ -140,7 +147,7 @@ public class ThermocoupleService extends Service {
             // now start temperature updates
             tempUpdateDisp = tempIntervalUpdater.subscribe(
                     appInstance.bbqController::setCurrentVariableValue,  // FIXME: was pidState.
-                    tempErr -> { if( DEBUG ) Log.d( TAG, "Error updating temp: " + tempErr ); }
+                    tempErr -> { if( DEBUG ) Log.d( TAG, "****** Error updating temp: " + tempErr + " ******"); }
             );
             serviceCompositeDisp.add( tempUpdateDisp );
             
@@ -161,6 +168,7 @@ public class ThermocoupleService extends Service {
     @Override
     public void onDestroy( ) {
         serviceCompositeDisp.clear();   //  kill all the subscriptions
+        bbqController.stop();  // remove callbacks etc.
         super.onDestroy( );
     }
     

@@ -43,7 +43,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     
     static final String TAG = TestActivity.class.getSimpleName();
     
-    ThermocoupleApp appInstance;
+    ThermocoupleApp appInstance;                          // set in onCreate()
     
     Button updateTempButton;
     ToggleButton toggleFanButton;
@@ -51,12 +51,12 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     Button setTempButton;
     ToggleButton togglePIDButton;
     
-    InitialValueObservable<Boolean> fanToggleObservable;  // emits clicks on Fan On/Off button
-    InitialValueObservable<Boolean> pidToggleObservable;
-    Observable<Object> tempUpdateObservable;
-    Observable<Object> tempSetObservable;
-    //InitialValueObservable<Integer> tempSliderObservable;
-    InitialValueObservable<SeekBarChangeEvent> tempSliderEventObservable;  // captures start & stop, not just value
+    InitialValueObservable<Boolean> fanToggleObservable;  // emits clicks on Fan On/Off button TODO: eventually eliminate?
+    InitialValueObservable<Boolean> pidToggleObservable;  // emits clicks on PID enable/disable button
+    Observable<Object> tempUpdateObservable;              // emits clicks on Update Current Temp button
+    Observable<Object> tempSetObservable;                 // TODO: unused
+    //InitialValueObservable<Integer> tempSliderObservable;  // replaced by... (TODO: replace slider?)
+    InitialValueObservable<SeekBarChangeEvent> tempSliderEventObservable;  // captures value, start & stop, not just value
     
     Disposable fanToggleDisposable;
     Disposable pidToggleDisposable;
@@ -71,20 +71,21 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     Disposable watchdogResetDisposable;
     Disposable watchdogStatusUpdatesDisposable;
     
-    Disposable pidParameterChangesDisp;
-    CompositeDisposable serviceImplDisp;
+    Disposable pidParameterChangesDisp;   // Service impl
+    CompositeDisposable serviceImplDisp;  // Service impl
     
-    Subject<String> fanButtonTextPublisher;         // called to emit text to be displayed by fan state button (or other subs)
-    Subject<String> updateTempButtonTextPublisher;  // called to emit text to be displayed by temp update button (or other subs)
-    Subject<String> pidButtonTextPublisher;         // called to emit text to be displayed by PID enable/disable button (or other subs)
-    Subject<String> setTempButtonTextPublisher;     // called to emit text to be displayed by PID enable/disable button (or other subs)
+    // TODO: get rid of these(?)
+    Subject<String> fanButtonTextPublisher;         // onNext() called to emit text to be displayed by fan state button (or other subs)
+    Subject<String> updateTempButtonTextPublisher;  // onNext() called to emit text to be displayed by temp update button (or other subs)
+    Subject<String> pidButtonTextPublisher;         // onNext() called to emit text to be displayed by PID enable/disable button (or other subs)
+    Subject<String> setTempButtonTextPublisher;     // onNext() called to emit text to be displayed by PID enable/disable button (or other subs)
     
-    // attempt at ViewModel to save temp history
+    // attempt at ViewModel to save temp history  TODO: dump? (all Rx)
     private UIStateModel uiStateModel;
     
-    ThermocoupleService thermoServiceRef;
-    ThermocoupleService.LocalBinder thermoBinder;
-    ComponentName serviceComponentName;
+    ThermocoupleService thermoServiceRef;           // set when Service is bound
+    ThermocoupleService.LocalBinder thermoBinder;   // part of binding operation, not used otherwise
+    ComponentName serviceComponentName;             // returned by .startService(); just logged
     
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
@@ -97,34 +98,36 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         setSupportActionBar( toolbar );
         
         appInstance = ThermocoupleApp.getSoleInstance();
-        appInstance.setTestActivityRef( this );  // install a reference to this activity in main App
+        appInstance.setTestActivityRef( this );  // install a reference to this activity in main App TODO: need?
         appInstance.bbqController.setTestActivityRef( this );  // TODO: need?
         
+        // should be OK for now
         updateTempButton = (Button) findViewById( R.id.temp_button );
         toggleFanButton = (ToggleButton) findViewById( R.id.fan_button );
         tempSlider = (SeekBar) findViewById( R.id.temp_slider );
         setTempButton = (Button) findViewById( R.id.setpoint_button );
         togglePIDButton = (ToggleButton) findViewById( R.id.pid_button );
         
-        fanToggleObservable = RxCompoundButton.checkedChanges( toggleFanButton );
-        pidToggleObservable = RxCompoundButton.checkedChanges( togglePIDButton );
-        tempUpdateObservable = RxView.clicks( updateTempButton );
-        //tempSliderObservable = RxSeekBar.changes( tempSlider );
-        tempSliderEventObservable = RxSeekBar.changeEvents( tempSlider );  // now detect all events, not just motion
+        fanToggleObservable = RxCompoundButton.checkedChanges( toggleFanButton );  // emits clicks on Fan On/Off button TODO: eventually eliminate?
+        pidToggleObservable = RxCompoundButton.checkedChanges( togglePIDButton );  // emits clicks on PID enable/disable button
+        tempUpdateObservable = RxView.clicks( updateTempButton );                  // emits clicks on Update Current Temp button
+        //tempSliderObservable = RxSeekBar.changes( tempSlider );                  // replaced by...
+        tempSliderEventObservable = RxSeekBar.changeEvents( tempSlider );          // now emits all events, not just motion
         
         
         // BehaviorSubject emits its last observed value plus future values to each new subscriber
         // .toSerialized() converts any kind of Subject to a plain Subject (see above declarations)
+        // TODO: just use .setText?
         fanButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe TODO: need serialized? always UI thread?
         updateTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
         pidButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
         setTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
     
-        serviceImplDisp= new CompositeDisposable(  );
+        serviceImplDisp= new CompositeDisposable(  );      // for Service impl
         
-        uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );
+        uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );  // TODO: dump?
         
-        // Create the LiveData observer that updates the UI.
+        // Create the LiveData observer that updates the UI.  TODO: dump?
         final Observer<UIStateModel.UIState> uiStateObserver = new Observer<UIStateModel.UIState>() {
             @Override
             public void onChanged( @Nullable UIStateModel.UIState uiState ) {
@@ -133,7 +136,6 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
                 Log.d( TAG, "LiveData updated UI state with temp " + uiState.getUITempUpdate( ) );  // Works!!
             }
         };
-        
         // Observe the LiveData, passing in this activity as the LifecycleOwner and the observer.
         uiStateModel.getCurrentUIState().observe(this, uiStateObserver );
         
@@ -166,13 +168,13 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         if( !bindService( bindThermoServiceIntent, /*ServiceConnection interface*/ this, Context.BIND_AUTO_CREATE ) ) // flag: create the service if it's bound
             throw new RuntimeException( TAG + ": bindService() call in onStart() failed" );
         serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // bind to it AND start it
-        if( DEBUG ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toString() );  // looks OK
+        if( DEBUG ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
         
         pidParameterChangesDisp = appInstance.pidState.pidStatePublisher
                 .observeOn( AndroidSchedulers.mainThread() )  // don't forget!
                 .subscribe(  // receive updated parameters & redraw UI
                         updatedParams -> {
-                            updateTempButton.setText( "Current Temperature: " + updatedParams.currentVariableValue + "°F" );
+                            updateTempButton.setText( "Current Temperature: " + updatedParams.currentVariableValue + "°F" );  // FIXME: not getting set?
                             togglePIDButton.setText( "PID enabled: " + updatedParams.enabled
                                     + (updatedParams.intClamped? " (clamped)" : "") );
                             toggleFanButton.setText( "PID output on: " + updatedParams.outputOn );
@@ -186,7 +188,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         
         //float startingSetpoint = appInstance.pidState.getSetPoint();  // DEFAULT_SETPOINT constant
         //updateTempButtonTextPublisher.onNext( "INITIAL TEMP SETTING: " + startingSetpoint );
-        tempSlider.setProgress( Math.round( appInstance.pidState.getSetPoint() ) );
+        tempSlider.setProgress( Math.round( appInstance.bbqController.getSetpoint() ) );
         //pidButtonTextPublisher.onNext( "PID IS INITIALLY DISABLED:" );
         
         // set initial appState
@@ -197,13 +199,15 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         httpResponse -> {
-                            fanButtonTextPublisher.onNext( "FAN IS INITIALLY OFF" );
+                            //fanButtonTextPublisher.onNext( "FAN IS INITIALLY OFF" );  // replaced by...
+                            toggleFanButton.setText( "FAN IS INITIALLY OFF" );
                             //appInstance.pidState.setOutputOn( false );  // fanControlWithWarning takes care of this
                         },
                         httpError -> {
                             Toast.makeText( TestActivity.this, "Fan shutoff in onStart() failed after retries"
-                                    + httpError.getMessage(), Toast.LENGTH_SHORT ).show();
-                            fanButtonTextPublisher.onNext( "Error turning fan off in onStart()" );
+                                    + httpError.getMessage(), Toast.LENGTH_LONG ).show();
+                            //fanButtonTextPublisher.onNext( "Error turning fan off in onStart()" );  // replaced by...
+                            toggleFanButton.setText( "Error turning fan off in onStart()" );
                         } );
         
         // get initial temperature reading
@@ -350,17 +354,18 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         // handle clicks on the temperature update button (manual update)
         tempUpdateDisposable = tempUpdateObservable.subscribe(
                 click -> appInstance.wifiCommunicator.tempFGetter.get()
+                        .map( tempJSON -> (float) tempJSON.getDouble( "TempF" ) )  // NEW
+                        .retry( 2 )  // NEW: get a bad reading occasionally
                         .observeOn( AndroidSchedulers.mainThread() )
                         .subscribe(
-                                tempJSON -> {
-                                    updateTempButtonTextPublisher.onNext("LAST READING: "
-                                            + String.valueOf( tempJSON.getDouble( "TempF" ) ) + "°F" );
+                                tempFloat -> {
+                                    updateTempButton.setText( "LAST READING: " + tempFloat + "°F" );
                                     if( DEBUG ) Log.d( TAG, "Temp manually updated successfully" );
                                 },
-                                tempJSONErr -> {
-                                    updateTempButtonTextPublisher.onNext( "Manual temp update error: "
-                                            + tempJSONErr.getMessage() );
-                                    if( DEBUG ) Log.d( TAG, "Error getting JSON temp update: " + tempJSONErr.getMessage() );
+                                tempErr -> {
+                                    updateTempButton.setText( "Manual temp update error: "
+                                            + tempErr.getMessage() );
+                                    if( DEBUG ) Log.d( TAG, "Error getting temp update: " + tempErr.getMessage() );
                                 }
                         )
         );
@@ -448,9 +453,9 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         //tempFUpdaterDisposable.dispose();           // turn off periodic temp updates  FIXME: crash NPE
         serviceImplDisp.clear();              // new composite for Service implementation
         
-        watchdogEnableDisposable.dispose();         // disable watchdog
-        watchdogStatusUpdatesDisposable.dispose();  // stop getting watchdog status updates
-        watchdogResetDisposable.dispose();          // stop resetting watchdog timer
+        //watchdogEnableDisposable.dispose();         // disable watchdog  FIXME: crash NPE
+        //watchdogStatusUpdatesDisposable.dispose();  // stop getting watchdog status updates
+        //watchdogResetDisposable.dispose();          // stop resetting watchdog timer
         super.onStop( );
         
         if( DEBUG ) Log.d( TAG, "Exiting onStop()" );
