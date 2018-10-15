@@ -20,26 +20,30 @@ import java.util.function.Consumer;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.PublishSubject;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
 import static net.grlewis.wifithermocouple.Constants.ANALOG_IN_UPDATE_SECS;
+import static net.grlewis.wifithermocouple.Constants.ANALOG_READ_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 import static net.grlewis.wifithermocouple.Constants.DISABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.ENABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_CONTROL_TIMEOUT_SECS;
+import static net.grlewis.wifithermocouple.Constants.FAN_CONTROL_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.FAN_OFF_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_ON_URL;
 import static net.grlewis.wifithermocouple.Constants.HISTORY_MINUTES;
-import static net.grlewis.wifithermocouple.Constants.HTTP_UUID_UPPER_HALF;
-import static net.grlewis.wifithermocouple.Constants.JSON_UUID_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.READ_ANALOG_URL;
 import static net.grlewis.wifithermocouple.Constants.RESET_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
+import static net.grlewis.wifithermocouple.Constants.TEMP_GET_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
+import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.WATCHDOG_CHECK_SECONDS;
+import static net.grlewis.wifithermocouple.Constants.WATCHDOG_ENABLE_UPPER_HALF;
+import static net.grlewis.wifithermocouple.Constants.WATCHDOG_FEED_UPPER_HALF;
+import static net.grlewis.wifithermocouple.Constants.WATCHDOG_STATUS_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.WD_STATUS_URL;
 
 class WiFiCommunicator {  // should probably be a Singleton (it is: see ThermocoupleApp)
@@ -56,12 +60,19 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     private UIStateModel uiStateModel;
     
-    private Function<URL,UUID> httpUUIDSupplier;
-    private Function<URL,UUID> jsonUUIDSupplier;
+    //private Function<URL,UUID> httpUUIDSupplier;
+    //private Function<URL,UUID> jsonUUIDSupplier;
+    private Function<URL,UUID> watchdogEnableUUIDSupplier;
+    private Function<URL,UUID> watchdogFeedUUIDSupplier;
+    private Function<URL,UUID> tempGetUUIDSupplier;
+    private Function<URL,UUID> tempUpdateUUIDSupplier;
+    private Function<URL,UUID> fanControlUUIDSupplier;
+    private Function<URL,UUID> watchdogStatusUUIDSupplier;
+    private Function<URL,UUID> analogReadUUIDSupplier;
     
     AsyncJSONGetter tempFGetter;
     AsyncJSONGetter watchdogStatusGetterSingle;
-    AsyncJSONGetter analogInputGetterSingle;
+    AsyncJSONGetter analogReaderSingle;
     
     Observable<Float> analogInObservable;
     
@@ -89,18 +100,26 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     WiFiCommunicator() {
     
         // providers of custom UUIDs for JSON and HTTP requests (passed the URL, which we ignore and return serialized UUIDs)
-        httpUUIDSupplier = new SerialUUIDSupplier( HTTP_UUID_UPPER_HALF );  // 0x3000
-        jsonUUIDSupplier = new SerialUUIDSupplier( JSON_UUID_UPPER_HALF );  // 0x4000
+        watchdogEnableUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF );   // 0x1000
+        watchdogFeedUUIDSupplier   = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF );     // 0x2000
+        tempGetUUIDSupplier        = new SerialUUIDSupplier( TEMP_GET_UPPER_HALF );          // 0x3000
+        tempUpdateUUIDSupplier     = new SerialUUIDSupplier( TEMP_UPDATE_UPPER_HALF );       // 0x4000
+        fanControlUUIDSupplier     = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF );       // 0x5000
+        watchdogStatusUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_STATUS_UPPER_HALF );   // 0x6000
+        analogReadUUIDSupplier     = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF );       // 0x7000
         
     
         // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
-        tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, jsonUUIDSupplier );  // new UUIDs on subscribe
-        watchdogStatusGetterSingle = new AsyncJSONGetter( WD_STATUS_URL, client, jsonUUIDSupplier );
-        analogInputGetterSingle = new AsyncJSONGetter( READ_ANALOG_URL, client, jsonUUIDSupplier );
+        tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, tempGetUUIDSupplier );
+        
+        watchdogStatusGetterSingle = new AsyncJSONGetter( WD_STATUS_URL, client, watchdogStatusUUIDSupplier );
+        analogReaderSingle = new AsyncJSONGetter( READ_ANALOG_URL, client, analogReadUUIDSupplier );
     
         analogInObservable = Observable.interval( ANALOG_IN_UPDATE_SECS, TimeUnit.SECONDS )
-                .flatMapSingle( tick -> analogInputGetterSingle.get() )
+                .flatMapSingle( tick -> analogReaderSingle.get() )
+                .retry( 2L )  // NEW (for errors producing HTTP Response)
                 .map( json -> (float) json.getDouble( "AnalogVoltsIn" ) )
+                .retry( 2L )  // NEW (for JSON errors)
                 .doOnNext( volts -> appInstance.pidState.setAnalogInVolts( volts ) );
                 
     
@@ -124,23 +143,11 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     
     
-    // generic method to get JSON from a URL (currently unused)
-    // passes a callback handler that implements JSONHandler interface (with handleJSON() and handleJSONError() methods)
-    void getJSONFromURL( final URL theURL, final JSONHandler jsonHandler ) {  // TODO: will this hold reference to jsonGetter as long as needed?
-        AsyncJSONGetter jsonGetter = new AsyncJSONGetter( theURL, client, jsonUUIDSupplier );
-        Disposable getJSONDisposable = jsonGetter.get().subscribe(  // subscribe to the Single (uses Schedulers.io)
-                jsonHandler::handleJSON,
-                jsonHandler::handleJSONError
-        );
-        //getJSONDisposable.dispose();  // TODO: Single is automatically disposed when it emits?
-    }
-    
-    
-    
     
     // Observable to request Watchdog status JSON and reset every 40 seconds
     // note AsyncJSONGrtter is a Single; this combines the series of Single outputs into an Observable
     // the .onNext() handler will receive the JSON object
+    // TODO: need?
     Observable<JSONObject> watchdogStatusUpdates = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )
             .flatMapSingle( checkWatchdogNow ->  watchdogStatusGetterSingle.get() );  // creates Observable that emits status updates
     
@@ -247,16 +254,12 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     // subscribe to the returned requester to get a warning of any problems with fan
     // the Single emits the HTTP Response
+    // TODO: this one method refactored for Service (so far)
     Single<Response> fanControlWithWarning( boolean fanState ) {
-        URL fanURL;
-        if( fanState ) {
-            fanURL = FAN_ON_URL;
-        } else {
-            fanURL = FAN_OFF_URL;
-        }
-        return new AsyncHTTPRequester( fanURL, eagerClient, httpUUIDSupplier )  // generate (serialized) UUIDs
+        URL fanURL = fanState? FAN_ON_URL : FAN_OFF_URL;
+        return new AsyncHTTPRequester( fanURL, eagerClient, httpUUIDSupplier )  // generate (serialized) UUIDs FIXME: problem
                 .request()
-                .retry( 1 )  // new
+                .retry( 2 )  // new
                 .observeOn( AndroidSchedulers.mainThread() )  // must use UI thread to show a Toast
                 .doOnSuccess( response -> appInstance.pidState.setOutputOn( fanState ) )
                 .doOnError(
@@ -267,8 +270,8 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                 );
     }
     
-    // Version that allows passing an error handling Consumer (with an accept() method, returning no result)
-    // TODO: needs updating
+    // Version that allows passing an error handling Consumer (with an accept() method that returns no result)
+    // TODO: needs updating if we want to use it
     @TargetApi( 24 )  // Consumer requires API 24
     Single<Response> fanControlWithWarning( boolean fanState, Consumer<Throwable> errorHandler ) {
         URL fanURL;

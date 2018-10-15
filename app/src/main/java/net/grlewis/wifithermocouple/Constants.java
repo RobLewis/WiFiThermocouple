@@ -13,6 +13,7 @@ import java.net.URL;
 *     0x1000: watchdog enabler
 *     0x2000: watchdog feeder
 *     0x3000: temperature updater
+*     0x4000: fan control
 *
 * */
 
@@ -90,8 +91,8 @@ final class Constants {
             CURRENT_SECONDS_URL = new URL( urlRoot + currentSeconds );
             ENABLE_WD_URL       = new URL( urlRoot + enableWatchdog );
             DISABLE_WD_URL      = new URL( urlRoot + disableWatchdog );
-            WD_STATUS_URL       = new URL( urlRoot + watchdogStatus );
-            RESET_WD_URL        = new URL( urlRoot + resetWatchdog );
+            WD_STATUS_URL       = new URL( urlRoot + watchdogStatus );  // JSON whether it's enabled and has expired
+            RESET_WD_URL        = new URL( urlRoot + resetWatchdog );   // HTTP to feed the timer
             READ_ANALOG_URL     = new URL( urlRoot + readAnalog );
             GET_INFO_URL        = new URL( urlRoot + getInfo );
     
@@ -108,9 +109,10 @@ final class Constants {
     }
     
     
-    static final int TEMP_UPDATE_SECONDS = 5;  // seconds between temp polling (can be different from PID period)
-    static final int HISTORY_MINUTES = 60;     // how many minutes of temp history to buffer
-    static final int WATCHDOG_CHECK_SECONDS = 40;
+    static final int TEMP_UPDATE_SECONDS = 5;       // seconds between temp polling (can be different from PID period)
+    static final int HISTORY_MINUTES = 60;          // how many minutes of temp history to buffer
+    static final int WATCHDOG_CHECK_SECONDS = 60;   // time between checks of enabled/expired JSON, if enabled
+    static final int WATCHDOG_RESET_SECONDS = 40;
     static final int FAN_CONTROL_TIMEOUT_SECS = 5;  // can't wait around for fan commands TODO: was 2 too short?
     static final int ANALOG_IN_UPDATE_SECS = 1;
     
@@ -118,7 +120,7 @@ final class Constants {
     static final String HARDWARE_VERSION = "0.8";
     
     // New, for PIDState constructor
-    static final float DEFAULT_SETPOINT = 250f;              // TODO: consider °F or °C?
+    static final float DEFAULT_SETPOINT = 250f;              // TODO: consider °F or °C? Set to current temp value on startup?
     static final float DEFAULT_GAIN = 1f;                    // TODO: value? (started at 2)
     static final float DEFAULT_PROP_COEFF = 16f;             // TODO: value? from AppleScript
     static final float DEFAULT_INT_COEFF = 2f;               // TODO: value?
@@ -128,8 +130,13 @@ final class Constants {
     static final float DEFAULT_DUTY_CYCLE_PCT = 0f;          // TODO: value?
     static final boolean DEFAULT_PID_ENABLE_STATE = false;   // TODO: value?
     
-    static final long HTTP_UUID_UPPER_HALF = 0x3000;
-    static final long JSON_UUID_UPPER_HALF = 0x4000;
+    static final long WATCHDOG_ENABLE_UPPER_HALF = 0x1000;
+    static final long WATCHDOG_FEED_UPPER_HALF   = 0x2000;
+    static final long TEMP_GET_UPPER_HALF        = 0x3000;
+    static final long TEMP_UPDATE_UPPER_HALF     = 0x4000;
+    static final long FAN_CONTROL_UPPER_HALF     = 0x5000;
+    static final long WATCHDOG_STATUS_UPPER_HALF = 0x6000;
+    static final long ANALOG_READ_UPPER_HALF     = 0x7000;
     
     // action names that describe tasks that the JobIntentService can perform, e.g. ACTION_FETCH_NEW_ITEMS
     static final String ACTION_START_TEMP_UPDATES = "net.grlewis.packagename.action.START_TEMP_UPDATES";

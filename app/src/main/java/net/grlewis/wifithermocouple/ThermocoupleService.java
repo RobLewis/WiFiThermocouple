@@ -29,8 +29,11 @@ import static net.grlewis.wifithermocouple.Constants.ENABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.RESET_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.SERVICE_NOTIFICATION_ID;
 import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
+import static net.grlewis.wifithermocouple.Constants.TEMP_GET_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
-import static net.grlewis.wifithermocouple.Constants.WATCHDOG_CHECK_SECONDS;
+import static net.grlewis.wifithermocouple.Constants.WATCHDOG_ENABLE_UPPER_HALF;
+import static net.grlewis.wifithermocouple.Constants.WATCHDOG_FEED_UPPER_HALF;
+import static net.grlewis.wifithermocouple.Constants.WATCHDOG_RESET_SECONDS;
 
 
 /*
@@ -57,7 +60,7 @@ public class ThermocoupleService extends Service {
     AsyncHTTPRequester watchdogFeeder;
     Observable<Response> watchdogIntervalFeeder;
     Disposable tempUpdateDisp;
-    AsyncJSONGetter tempUpdater;
+    AsyncJSONGetter tempGetter;
     Observable<Float> tempIntervalUpdater;
     
     
@@ -91,13 +94,13 @@ public class ThermocoupleService extends Service {
         
         client = new OkHttpClient();
         
-        watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, new SerialUUIDSupplier( 0x1000 ) );
-        watchdogFeeder = new AsyncHTTPRequester( RESET_WD_URL, client, new SerialUUIDSupplier( 0x2000 ) );
-        watchdogIntervalFeeder = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )
+        watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF ) );
+        watchdogFeeder = new AsyncHTTPRequester( RESET_WD_URL, client, new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF ) );
+        watchdogIntervalFeeder = Observable.interval( WATCHDOG_RESET_SECONDS, TimeUnit.SECONDS )
                 .flatMapSingle( resetTime -> watchdogFeeder.request().retry( 5L ) );
-        tempUpdater = new AsyncJSONGetter( TEMP_F_URL, client, new SerialUUIDSupplier( 0x3000 ) );
+        tempGetter = new AsyncJSONGetter( TEMP_F_URL, client, new SerialUUIDSupplier( TEMP_GET_UPPER_HALF ) );
         tempIntervalUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )
-                .flatMapSingle( updateTime -> tempUpdater.get().retry( 9L ) )
+                .flatMapSingle( updateTime -> tempGetter.get().retry( 9L ) )
                 .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ) )
                 .retry( 9L )
                 .onErrorReturn( error -> {

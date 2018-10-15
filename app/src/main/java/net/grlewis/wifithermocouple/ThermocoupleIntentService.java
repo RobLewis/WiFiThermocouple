@@ -181,7 +181,7 @@ public class ThermocoupleIntentService extends JobIntentService {
         serviceCompDisp = new CompositeDisposable( );
         watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, new SerialUUIDSupplier( 0x1000 ) );
         watchdogResetter = new AsyncHTTPRequester( RESET_WD_URL, client, new SerialUUIDSupplier( 0x2000 ) );
-        tempGetter = new AsyncJSONGetter( TEMP_F_URL, client, new SerialUUIDSupplier( 0x3000 ) );
+        tempGetter = new AsyncJSONGetter( TEMP_F_URL, client, new SerialUUIDSupplier( 0x3000 ) );  // spurious
         tempUpdateObs = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )
                 .flatMapSingle( timeToUpdate -> tempGetter.get() )
                 .retry( 2 )

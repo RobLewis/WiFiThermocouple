@@ -6,13 +6,15 @@ interface PIDController {
     Float getSetpoint();  // null if not set yet
     
     boolean start(); // return false if setpoint hasn't been set
-    boolean stop();  // always shut off the heat
+    boolean stop();  // always shut off the heat (control loop can keep running but not operate heater?)
     boolean isRunning();
     
     boolean reset();  // clear history etc.
     boolean isReset();  // true after reset until settings set etc.
     
-    float getError();  // setPoint - current value (odd choice of sign, but it's NI's convention)
+    default float getError() {  // setPoint - current value (odd choice of sign, but it's NI's convention)
+        return getSetpoint() - getCurrentVariableValue();
+    }
     
     boolean setPeriodMs( long ms );
     Long getPeriodMs();

@@ -36,9 +36,11 @@
             </intent-filter>
         </activity>
 
+        <!-- is this the problem? evidently not
         <service
             android:name=".ThermocoupleIntentService"
             android:exported="false" />
+            -->
 
         <service
             android:name=".ThermocoupleService"

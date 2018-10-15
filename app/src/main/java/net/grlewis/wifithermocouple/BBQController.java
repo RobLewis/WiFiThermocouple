@@ -172,7 +172,10 @@ class BBQController implements PIDController {
     
     // END OF INTERFACE IMPLEMENTATION  \\
     
-    
+    // Additional functionality not part of the PIDController interface
+    public Float getControlSetting( ) {  // read the analog in voltage (knob): 0.0-1.0 volts
+        return pidState.getAnalogInVolts();
+    }
     
     
     
@@ -189,7 +192,8 @@ class BBQController implements PIDController {
             
             iteration++;
             
-            if( DEBUG ) Log.d( TAG, "Entering PID Control Loop iteration " + iteration + "; temp = " + getCurrentVariableValue()
+            if( DEBUG ) Log.d( TAG, "Entering PID Control Loop iteration " + iteration + " on thread "
+                    + Thread.currentThread().getName() + "; temp = " + getCurrentVariableValue()
                     + " setpoint = " + getSetpoint() );
             
             

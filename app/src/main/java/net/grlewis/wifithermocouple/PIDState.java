@@ -14,6 +14,7 @@ class PIDState implements Cloneable, Serializable {
     private Parameters parameters;
     public BehaviorSubject<Parameters> pidStatePublisher;
     private boolean publishChanges;
+    private Float previousAnalogIn;
     
     class Parameters implements Cloneable, Serializable {
         
@@ -218,7 +219,10 @@ class PIDState implements Cloneable, Serializable {
     Float getAnalogInVolts( ) { return parameters.analogInVolts; }
     void setAnalogInVolts( Float analogVolts ) {
         this.parameters.analogInVolts = analogVolts;
-        pidStatePublisher.onNext( parameters );
+        if( !analogVolts.equals( previousAnalogIn ) ) {  // only publish if value changed
+            pidStatePublisher.onNext( parameters );
+            previousAnalogIn = analogVolts;
+        }
     }
     
     
