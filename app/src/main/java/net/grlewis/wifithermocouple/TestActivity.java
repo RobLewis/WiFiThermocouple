@@ -86,6 +86,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     ThermocoupleService thermoServiceRef;           // set when Service is bound
     ThermocoupleService.LocalBinder thermoBinder;   // part of binding operation, not used otherwise
     ComponentName serviceComponentName;             // returned by .startService(); just logged
+    boolean serviceBound;                           // did service binding succeed?
     
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
@@ -165,7 +166,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         
         // part of Service implementation
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
-        if( !bindService( bindThermoServiceIntent, /*ServiceConnection interface*/ this, Context.BIND_AUTO_CREATE ) ) // flag: create the service if it's bound
+        if( !( serviceBound = bindService( bindThermoServiceIntent, /*ServiceConnection interface*/ this, Context.BIND_AUTO_CREATE ) ) ) // flag: create the service if it's bound
             throw new RuntimeException( TAG + ": bindService() call in onStart() failed" );
         serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // bind to it AND start it
         if( DEBUG ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
@@ -461,9 +462,18 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         if( DEBUG ) Log.d( TAG, "Exiting onStop()" );
     }
     
-    // TODO: stop & unbind service onDestroy() (?)
+    // TODO: unbind service onDestroy() (?)
     
     
+    @Override
+    protected void onDestroy( ) {
+        if( serviceBound ) {
+            getApplicationContext().unbindService( this );;     // try to avoid leaking Service ('this' is ServiceConnection)
+        } else {
+            if( DEBUG ) Log.d( TAG, "onDestroy() found that ThermocoupleService was not bound" );
+        }
+        super.onDestroy( );
+    }
     
     /*---------------------------------SERVICE CONNECTION INTERFACE-----------------------------------*/
     // Created & used by onStart() in call to bindService()

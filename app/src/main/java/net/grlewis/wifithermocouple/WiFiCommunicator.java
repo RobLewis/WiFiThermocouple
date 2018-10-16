@@ -100,13 +100,13 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     WiFiCommunicator() {
     
         // providers of custom UUIDs for JSON and HTTP requests (passed the URL, which we ignore and return serialized UUIDs)
-        watchdogEnableUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF );   // 0x1000
-        watchdogFeedUUIDSupplier   = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF );     // 0x2000
-        tempGetUUIDSupplier        = new SerialUUIDSupplier( TEMP_GET_UPPER_HALF );          // 0x3000
-        tempUpdateUUIDSupplier     = new SerialUUIDSupplier( TEMP_UPDATE_UPPER_HALF );       // 0x4000
-        fanControlUUIDSupplier     = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF );       // 0x5000
-        watchdogStatusUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_STATUS_UPPER_HALF );   // 0x6000
-        analogReadUUIDSupplier     = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF );       // 0x7000
+        watchdogEnableUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF, "Watchdog Enabler" );   // 0x1000
+        watchdogFeedUUIDSupplier   = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF, "Watchdog Feeder" );     // 0x2000
+        tempGetUUIDSupplier        = new SerialUUIDSupplier( TEMP_GET_UPPER_HALF, "Temp Getter" );          // 0x3000
+        tempUpdateUUIDSupplier     = new SerialUUIDSupplier( TEMP_UPDATE_UPPER_HALF, "Temp Updater" );       // 0x4000
+        fanControlUUIDSupplier     = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF, "Fan Controller" );       // 0x5000
+        watchdogStatusUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_STATUS_UPPER_HALF, "Watchdog Status Checker" );   // 0x6000
+        analogReadUUIDSupplier     = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF, "Analog Reader" );       // 0x7000
         
     
         // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
@@ -120,7 +120,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                 .retry( 2L )  // NEW (for errors producing HTTP Response)
                 .map( json -> (float) json.getDouble( "AnalogVoltsIn" ) )
                 .retry( 2L )  // NEW (for JSON errors)
-                .doOnNext( volts -> appInstance.pidState.setAnalogInVolts( volts ) );
+                .doOnNext( volts -> appInstance.pidState.setAnalogInVolts( volts ) );  // (BBQController has no setter, by design)
                 
     
         tempHistoryBuffer = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
