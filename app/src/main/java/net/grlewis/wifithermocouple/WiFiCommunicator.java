@@ -230,11 +230,11 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     AsyncHTTPRequester fanControlSingle( boolean fanState ) {
         if( fanState ) {
             appInstance.appState.setFanState( true );
-            return new AsyncHTTPRequester( FAN_ON_URL, client, httpUUIDSupplier );  // trial of auto-generate new UUID per request
+            return new AsyncHTTPRequester( FAN_ON_URL, client, fanControlUUIDSupplier );  // trial of auto-generate new UUID per request
         }
         else {
             appInstance.appState.setFanState( false );
-            return new AsyncHTTPRequester( FAN_OFF_URL, client, httpUUIDSupplier );  // trial of auto-generate new UUID per request
+            return new AsyncHTTPRequester( FAN_OFF_URL, client, fanControlUUIDSupplier );  // trial of auto-generate new UUID per request
         }
     }
     
@@ -257,7 +257,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     // TODO: this one method refactored for Service (so far)
     Single<Response> fanControlWithWarning( boolean fanState ) {
         URL fanURL = fanState? FAN_ON_URL : FAN_OFF_URL;
-        return new AsyncHTTPRequester( fanURL, eagerClient, httpUUIDSupplier )  // generate (serialized) UUIDs FIXME: problem
+        return new AsyncHTTPRequester( fanURL, eagerClient, fanControlUUIDSupplier )  // generate (serialized) UUIDs FIXME: problem
                 .request()
                 .retry( 2 )  // new
                 .observeOn( AndroidSchedulers.mainThread() )  // must use UI thread to show a Toast
@@ -281,7 +281,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
             fanURL = FAN_OFF_URL;
         }
         appInstance.appState.setFanState( fanState );
-        return new AsyncHTTPRequester( fanURL, eagerClient, httpUUIDSupplier )  // generate serialized UUIDs
+        return new AsyncHTTPRequester( fanURL, eagerClient, fanControlUUIDSupplier )  // generate serialized UUIDs
                 .request()
                 .doOnError(
                         errorHandler::accept  // custom error handler TODO: "Consumer" requires API 24 (Android 7)

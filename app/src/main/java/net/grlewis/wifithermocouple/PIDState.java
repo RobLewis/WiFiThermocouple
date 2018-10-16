@@ -74,50 +74,54 @@ class PIDState implements Cloneable, Serializable {
     
     // GETTERS & SETTERS
     
-    // publishing control
+    // publishing control (not part of PIDController interface)
     public boolean publishingChanges( ) {
         return publishChanges;
     }
-    public void setPublishChanges( boolean publishChanges ) {
+    public void setPublishChanges( boolean publishChanges ) {  // called from BBQController
         this.publishChanges = publishChanges;
     }
     
-    // The PID setpoint
-    Float getSetPoint( ) {
-        return parameters.setPoint;
-    }
-    void set( Float setPoint ) {
-        this.parameters.setPoint = setPoint;
-        pidStatePublisher.onNext( parameters );
-    }
-    
-    // current value of the controlled variable (i.e., temperature)
-    Float getCurrentVariableValue( ) {
-        return parameters.currentVariableValue;
-    }
-    void setCurrentVariableValue( Float currentVariableValue ) {
-        this.parameters.currentVariableValue = currentVariableValue;
-        pidStatePublisher.onNext( parameters );
-    }
-    
-    // previous value of the controlled variable (updated on each iteration)
-    Float getPreviousVariableValue( ) {
-        return parameters.previousVariableValue;
-    }
-    void setPreviousVariableValue( Float previousVariableValue ) {
-        this.parameters.previousVariableValue = previousVariableValue;
-        pidStatePublisher.onNext( parameters );
-    }
+    // not in interface, called from PID Control Loop
     void updatePreviousVariableValue( ) {  // sets it equal to CurrentVariableValue (FIXME: avoiding a crash?)
         this.parameters.previousVariableValue = this.parameters.currentVariableValue;
         //pidStatePublisher.onNext( parameters );  // TODO: do we need this?
     }
     
+    
+    // Methods handling calls forwarded from BBQController implementation of PIDController
+    
+    // The PID setpoint
+    Float getSetPoint( ) {
+        return parameters.setPoint;
+    }       // called from BBQController
+    void set( Float setPoint ) {                               // called from BBQController
+        this.parameters.setPoint = setPoint;
+        pidStatePublisher.onNext( parameters );
+    }
+    
+    // current value of the controlled variable (i.e., temperature)
+    Float getCurrentVariableValue( ) { return parameters.currentVariableValue; }    // called from BBQController
+    void setCurrentVariableValue( Float currentVariableValue ) {          // called from BBQController
+        this.parameters.currentVariableValue = currentVariableValue;
+        pidStatePublisher.onNext( parameters );
+    }
+    
+    // previous value of the controlled variable (updated on each iteration)
+    Float getPreviousVariableValue( ) {                               // called from BBQController
+        return parameters.previousVariableValue;
+    }
+    void setPreviousVariableValue( Float previousVariableValue ) {    // called from BBQController
+        this.parameters.previousVariableValue = previousVariableValue;
+        pidStatePublisher.onNext( parameters );
+    }
+   
+    
     // overall gain of PID
     Float getGain( ) {
         return parameters.gain;
-    }
-    void setGain( Float gain ) {
+    }          // called from BBQController
+    void setGain( Float gain ) {                          // called from BBQController
         this.parameters.gain = gain;
         pidStatePublisher.onNext( parameters );
     }
@@ -125,8 +129,8 @@ class PIDState implements Cloneable, Serializable {
     // coefficient of the proportional term
     Float getPropCoeff( ) {
         return parameters.propCoeff;
-    }
-    void setPropCoeff( Float propCoeff ) {
+    }    // called from BBQController
+    void setPropCoeff( Float propCoeff ) {                    // called from BBQController
         this.parameters.propCoeff = propCoeff;
         pidStatePublisher.onNext( parameters );
     }
@@ -134,8 +138,8 @@ class PIDState implements Cloneable, Serializable {
     // coefficient of the integral term
     Float getIntCoeff( ) {
         return parameters.intCoeff;
-    }
-    void setIntCoeff( Float intCoeff ) {
+    }      // called from BBQController
+    void setIntCoeff( Float intCoeff ) {                      // called from BBQController
         this.parameters.intCoeff = intCoeff;
         pidStatePublisher.onNext( parameters );
     }
@@ -143,8 +147,8 @@ class PIDState implements Cloneable, Serializable {
     // coefficient of the differential term
     Float getDiffCoeff( ) {
         return parameters.diffCoeff;
-    }
-    void setDiffCoeff( Float diffCoeff ) {
+    }    // called from BBQController
+    void setDiffCoeff( Float diffCoeff ) {                    // called from BBQController
         this.parameters.diffCoeff = diffCoeff;
         pidStatePublisher.onNext( parameters );
     }
@@ -152,8 +156,8 @@ class PIDState implements Cloneable, Serializable {
     // whether the integrator is currently clamped
     Boolean intIsClamped( ) {
         return parameters.intClamped;
-    }
-    void setIntClamped( Boolean intClamped ) {
+    }       // called from BBQController
+    void setIntClamped( Boolean intClamped ) {                      // called from BBQController
         this.parameters.intClamped = intClamped;
         pidStatePublisher.onNext( parameters );
     }
@@ -171,7 +175,7 @@ class PIDState implements Cloneable, Serializable {
     Float getIntAccum( ) {
         return parameters.intAccum;
     }
-    void setIntAccum( Float intAccum ) {
+    void setIntAccum( Float intAccum ) {                      // called from BBQController
         this.parameters.intAccum = intAccum;
         pidStatePublisher.onNext( parameters );
     }
@@ -179,17 +183,15 @@ class PIDState implements Cloneable, Serializable {
     // current repeat interval in seconds
     Float getPeriodSecs( ) {
         return parameters.periodSecs;
-    }
-    void setPeriodSecs( Float periodSecs ) {
+    }  // called from BBQController
+    void setPeriodSecs( Float periodSecs ) {                  // called from BBQController
         this.parameters.periodSecs = periodSecs;
         pidStatePublisher.onNext( parameters );
     }
     
     // whether PID operation is enabled
-    Boolean isEnabled( ) {
-        return parameters.enabled;
-    }
-    void setEnabled( Boolean enabled ) {  // TODO: shut heat off when disabling
+    Boolean isEnabled( ) { return parameters.enabled; }          // called from BBQController
+    void setEnabled( Boolean enabled ) {  // TODO: shut heat off when disabling     // called from BBQController
         this.parameters.enabled = enabled;
         pidStatePublisher.onNext( parameters );
     }
@@ -197,21 +199,21 @@ class PIDState implements Cloneable, Serializable {
     // reset controller
     Boolean isReset( ) {
         return parameters.reset;
-    }
-    void setReset( Boolean reset ) {
+    }              // called from BBQController
+    void setReset( Boolean reset ) {                             // called from BBQController
         this.parameters.reset = reset;
         pidStatePublisher.onNext( parameters );
     }
     
     // whether the output device (fan, heater, etc.) is currently on or off
-    Boolean outputIsOn( ) { return parameters.outputOn; }
-    void setOutputOn( Boolean outOn ) {
+    Boolean outputIsOn( ) { return parameters.outputOn; }       // called from BBQController
+    void setOutputOn( Boolean outOn ) {                         // called from BBQController
         this.parameters.outputOn = outOn;
         pidStatePublisher.onNext( parameters );
     }
     
-    Float getMinOutPctg( ) { return parameters.minOutPct; }
-    void setMinOutPctg( Float minOutPct ) {
+    Float getMinOutPctg( ) { return parameters.minOutPct; }     // called from BBQController
+    void setMinOutPctg( Float minOutPct ) {                     // called from BBQController
         this.parameters.minOutPct = minOutPct;
         pidStatePublisher.onNext( parameters );
     }

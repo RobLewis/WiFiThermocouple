@@ -461,7 +461,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         if( DEBUG ) Log.d( TAG, "Exiting onStop()" );
     }
     
-    
+    // TODO: stop & unbind service onDestroy() (?)
     
     
     
