@@ -73,12 +73,12 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     
     Disposable pidParameterChangesDisp;   // Service impl
     CompositeDisposable serviceImplDisp;  // Service impl
-    
-    // TODO: get rid of these(?)
-    Subject<String> fanButtonTextPublisher;         // onNext() called to emit text to be displayed by fan state button (or other subs)
-    Subject<String> updateTempButtonTextPublisher;  // onNext() called to emit text to be displayed by temp update button (or other subs)
-    Subject<String> pidButtonTextPublisher;         // onNext() called to emit text to be displayed by PID enable/disable button (or other subs)
-    Subject<String> setTempButtonTextPublisher;     // onNext() called to emit text to be displayed by PID enable/disable button (or other subs)
+
+//    // TODO: get rid of these(?)
+//    Subject<String> fanButtonTextPublisher;         // onNext() called to emit text to be displayed by fan state button (or other subs)
+//    Subject<String> updateTempButtonTextPublisher;  // onNext() called to emit text to be displayed by temp update button (or other subs)
+//    Subject<String> pidButtonTextPublisher;         // onNext() called to emit text to be displayed by PID enable/disable button (or other subs)
+//    Subject<String> setTempButtonTextPublisher;     // onNext() called to emit text to be displayed by PID enable/disable button (or other subs)
     
     // attempt at ViewModel to save temp history  TODO: dump? (all Rx)
     private UIStateModel uiStateModel;
@@ -119,11 +119,11 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         // BehaviorSubject emits its last observed value plus future values to each new subscriber
         // .toSerialized() converts any kind of Subject to a plain Subject (see above declarations)
         // TODO: just use .setText?
-        fanButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe TODO: need serialized? always UI thread?
-        updateTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
-        pidButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
-        setTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
-    
+//        fanButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe TODO: need serialized? always UI thread?
+//        updateTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
+//        pidButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
+//        setTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
+        
         serviceImplDisp= new CompositeDisposable(  );      // for Service impl
         
         uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );  // TODO: dump?
@@ -300,22 +300,24 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         super.onResume( );
         
         // handle clicks on the Fan On/Off button: switch fan and update button text
+        // TODO: not part of final system?
         fanToggleDisposable = fanToggleObservable
                 //.skipInitialValue()  // discard the immediate emission on subscription TODO: does this work?
                 .skip( 1L )
                 .subscribe(
                         newFanState -> {  // fan on/off button clicked
-                            appInstance.pidState.setOutputOn( newFanState );
-                            appInstance.wifiCommunicator.fanControlWithWarning( newFanState )
-                                    .observeOn( AndroidSchedulers.mainThread() )
-                                    //.subscribe( httpResponse -> toggleFanButton.setText( newFanState? "FAN IS ON" : "FAN IS OFF" ) );
-                                    .subscribe(
-                                            response -> {
-                                                fanButtonTextPublisher.onNext( newFanState? "Fan turned on with button" : "Fan turned off with button" );
-                                                if( DEBUG ) Log.d( TAG, newFanState? "Fan turned on with button" : "Fan turned off with button" );
-                                            },
-                                            fanSwitchErr -> Log.d( TAG, "Error manually switching fan: " + fanSwitchErr.getMessage() )
-                                    );
+                            //appInstance.pidState.setOutputOn( newFanState );
+                            appInstance.bbqController.setOutputOn( newFanState );  // NEW
+//                            appInstance.wifiCommunicator.fanControlWithWarning( newFanState )
+//                                    .observeOn( AndroidSchedulers.mainThread() )
+//                                    //.subscribe( httpResponse -> toggleFanButton.setText( newFanState? "FAN IS ON" : "FAN IS OFF" ) );
+//                                    .subscribe(
+//                                            response -> {
+//                                                toggleFanButton.setText( newFanState? "Fan turned on with button" : "Fan turned off with button" );
+//                                                if( DEBUG ) Log.d( TAG, newFanState? "Fan turned on with button" : "Fan turned off with button" );
+//                                            },
+//                                            fanSwitchErr -> Log.d( TAG, "Error manually switching fan: " + fanSwitchErr.getMessage() )
+//                                    );
                         },
                         fanToggleErr -> {
                             Log.d( TAG, "Error getting fan button click: " + fanToggleErr.getMessage() );
@@ -330,19 +332,18 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
                 .subscribe(
                         newPidState -> {
                             //appInstance.appState.enablePid( newPidState );  // TODO: need? (just sets appState.pidEnabled)
-                            appInstance.pidState.setEnabled( newPidState );
+//                            appInstance.pidState.setEnabled( newPidState );
                             if( newPidState ) {  // enable the PID
-                                if( appInstance.bbqController.start() ) {
-                                    pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped( )?
-                                            "PID is enabled (clamped)" : "PID is enabled" );
-                                    if ( DEBUG ) Log.d( TAG, "PID start command succeeded" );
-                                } else { // problem starting
-                                    if( DEBUG ) Log.d( TAG, "Attempt to start PID failed");
-                                }
+                                appInstance.bbqController.start();  // NEW
+//                                if( appInstance.bbqController.start() ) {
+//                                    pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped( )?
+//                                            "PID is enabled (clamped)" : "PID is enabled" );
+//                                    if ( DEBUG ) Log.d( TAG, "PID start command succeeded" );
+//                                } else { // problem starting
+//                                    if( DEBUG ) Log.d( TAG, "Attempt to start PID failed");
+//                                }
                             } else {  // disable the PID
                                 appInstance.bbqController.stop();  // remove handler scheduled tasks, stop fan, set disabled
-                                pidButtonTextPublisher.onNext( "PID is disabled" );
-                                fanButtonTextPublisher.onNext( "PID turned fan off" );
                                 if( DEBUG ) Log.d( TAG, "Attempting to stop PID" );
                             }
                         },
@@ -382,7 +383,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
 //                }
                         newEvent -> {
                             if( newEvent instanceof SeekBarProgressChangeEvent ) {
-                                setTempButtonTextPublisher.onNext( "SETPOINT: "
+                                setTempButton.setText( "SETPOINT: "
                                         + String.valueOf( ((SeekBarProgressChangeEvent) newEvent).progress() ) + "°F" );
                             } else if( newEvent instanceof SeekBarStopChangeEvent ) {
                                 appInstance.bbqController.set( (float) tempSlider.getProgress() );  // FIXME: wasn't goin through BBQController
@@ -392,34 +393,6 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
                 );
         appInstance.onPauseDisposables.add( tempSliderDisposable );
         
-        fanButtonTextDisposable = fanButtonTextPublisher
-                .observeOn( AndroidSchedulers.mainThread() )
-                .subscribe(
-                        buttonText -> toggleFanButton.setText( buttonText )
-                );
-        appInstance.onPauseDisposables.add( fanButtonTextDisposable );
-        
-        tempButtonTextDisposable = updateTempButtonTextPublisher
-                .observeOn( AndroidSchedulers.mainThread() )  // else can't touch UI
-                .subscribe(
-                        buttonText -> updateTempButton.setText( buttonText ),
-                        buttTextErr -> Log.d( TAG, "Error trying to receive tempButton text update", buttTextErr )
-                );
-        appInstance.onPauseDisposables.add( tempButtonTextDisposable );
-        
-        pidToggleDisposable = pidButtonTextPublisher  // receive and display updates to PID on/off button text
-                .observeOn( AndroidSchedulers.mainThread() )
-                .subscribe(
-                        buttonText -> togglePIDButton.setText( buttonText )
-                );
-        appInstance.onPauseDisposables.add( pidToggleDisposable );
-        
-        setTempButtonTextDisposable = setTempButtonTextPublisher
-                .observeOn( AndroidSchedulers.mainThread() )
-                .subscribe(
-                        setTempButton::setText
-                );
-        appInstance.onPauseDisposables.add( setTempButtonTextDisposable );
         
         
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
@@ -431,14 +404,14 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     protected void onPause( ) {
         if( DEBUG ) Log.d( TAG, "Entering onPause()" );
         
-        fanToggleDisposable.dispose();   // TODO: combine these into a Composite Disposable
-        pidToggleDisposable.dispose();
-        tempUpdateDisposable.dispose();  // listener for clicks on temp button
-        tempSliderDisposable.dispose();
-        fanButtonTextDisposable.dispose();
-        tempButtonTextDisposable.dispose();
-        pidToggleDisposable.dispose();
-        setTempButtonTextDisposable.dispose();
+//        fanToggleDisposable.dispose();   // TODO: combine these into a Composite Disposable
+//        pidToggleDisposable.dispose();
+//        tempUpdateDisposable.dispose();  // listener for clicks on temp button
+//        tempSliderDisposable.dispose();
+//        fanButtonTextDisposable.dispose();
+//        tempButtonTextDisposable.dispose();
+//        pidToggleDisposable.dispose();
+//        setTempButtonTextDisposable.dispose();
         
         appInstance.onPauseDisposables.clear();
         

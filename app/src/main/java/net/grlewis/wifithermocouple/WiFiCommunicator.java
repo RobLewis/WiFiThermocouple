@@ -90,7 +90,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                 //.connectTimeout( 10L, TimeUnit.SECONDS )  // the default is said to be 10 seconds
                 .build();
         
-        eagerClient = client.newBuilder()
+        eagerClient = client.newBuilder()  // TODO: re-evaluate?
                 .readTimeout( FAN_CONTROL_TIMEOUT_SECS, TimeUnit.SECONDS )  // 5 sec? (default is 10)
                 .build();
     }
@@ -153,9 +153,9 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     
     
-    // Observable to request Temperature JSON (°F)
-    // subscribing to this will periodically update the ApplicationState temperature values (C and F)
-    // we should be able to ignore the JSON it emits
+    // Observable to request Temperature JSON (°F) [
+    // subscribing to this will periodically update the BBQController temperature value NEW
+    // we may be able to ignore the JSON it emits (subscriber's option, I guess)
     // note AsyncJSONGetter is a Single; this combines the series of Single outputs into an Observable stream
     // TODO: maybe add watchdog status query?
     Observable<JSONObject> tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )  // currently 5 seconds

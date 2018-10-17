@@ -1,5 +1,8 @@
 <resources>
+
     <string name="app_name">WiFi Thermocouple</string>
+
+    <string name="service_description">Background Service to keep PID running if Activity is stopped</string>
 
     <!-- Strings related to Settings -->
 

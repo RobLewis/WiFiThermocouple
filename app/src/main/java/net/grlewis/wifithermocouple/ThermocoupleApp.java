@@ -31,6 +31,8 @@ import static net.grlewis.wifithermocouple.Constants.DEBUG;
 *     Request watchdog status with Single timeout of, say, 10 seconds: .timeout( long, TimeUnit )
 *       If we request a TimeoutException error or WatchdogAlarm || !WatchdogEnabled, shut down and alarm
 *
+*   2018-10: updated firmware to 0.7 to try to work around "nan" temp readings
+*
 *
 * */
 

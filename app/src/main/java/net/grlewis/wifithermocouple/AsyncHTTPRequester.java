@@ -106,18 +106,14 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         public void subscribe( final SingleEmitter<Response> emitter ) throws Exception {
             
             if( emitter == null ) throw new NullPointerException( TAG + " Can't subscribe with a null SingleEmitter" );
-            
-            if( uuidSupplier != null ) requestUUID = uuidSupplier.apply( theURL );
-            
+            if( uuidSupplier != null ) requestUUID = uuidSupplier.apply( theURL );  // generate a custom UUID if available
             Request request = new Request.Builder( )
                     .url( theURL )
                     .tag( UUID.class, requestUUID )
                     .build( );
-            
+            disposed = false;
             savedCall = client.newCall( request );
-            
             emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
-            
             if( DEBUG ) Log.d( TAG, "About to enqueue HTTP request UUID " + requestUUID.toString() );
             
             savedCall.enqueue( new Callback( ) {
@@ -132,10 +128,10 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                     // tryOnError() returns false if sequence has been cancelled by downstream, or otherwise terminated
                     if( !emitter.tryOnError( new IOException( TAG + ": onFailure Callback while starting HTTP request with UUID: "
                             + requestUUID.toString() + ": " + e.getMessage(), e ) ) ) {
-                        Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
+                        if( DEBUG ) Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
                                 + " canceled before failure received" );
                     } else {  // Throwable was emitted because sequence still alive
-                        disposed = true;  // TODO: right? Error disposes? Maybe not? Retries should be possible? But Observer cancels on onError()?
+                        //disposed = true;  // TODO: right? Error disposes? Maybe not? Retries should be possible? But Observer cancels on onError()?
                         if( DEBUG ) Log.d( TAG, "onFailure callback for request UUID "
                                 + requestUUID.toString() + "signaled IOException: " + e.getMessage() );
                     }
@@ -147,8 +143,10 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                         if ( !response.isSuccessful( ) ) {  // evidently "successful" just means we got an intelligible response
                             emitter.onError( new IOException( TAG + ": HTTP request UUID " + requestUUID.toString()
                                     + " failed with HTTP status: " + response.message( ) ) );
+                            if( DEBUG) Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
+                                    + " failed with HTTP status: " + response.message( ) );
+                            //disposed = true;  // TODO: right?
                             failures++;
-                            disposed = true;  // TODO: right?
                         } else {  // successful response
                             if ( response.code( ) != 200 ) {  // response was not "OK"
                                 failures++;
@@ -156,7 +154,8 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                                         + " response code was not 200 (OK); was : " + response.code( ) );
                                 emitter.onError( new IOException( "HTTP request UUID " + requestUUID.toString()
                                         + " failed with response code: " + response.code( ) ) );
-                                disposed = true;  // TODO: right?
+                                //disposed = true;  // TODO: right?
+                                failures++;
                             } else {  // HTTP response OK
                                 successes++;
                                 emitter.onSuccess( response );
@@ -164,17 +163,16 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                         }  // else successful response
                     } else {  // emitter has been disposed TODO: neither success nor failure, right?
                         if( DEBUG ) Log.d( TAG, "HTTP request UUID " + requestUUID.toString()
-                                + " subscription disposed before response received" );
-                        disposed = true;  // TODO: right?
+                                + " subscription disposed before response received?  Emitter disposed? " + emitter.isDisposed() );
                     }
                     response.close();  // always do this
                 }  // onResponse()
             } );  // Callback & enqueue()
             
-            disposed = false;  // initially after subscribing, it is not disposed
             
         }  // subscribe
         // anything else we want this class to do? Maybe not; how would we access?
+        
     }  // internal class HTTPRequesterOnSubscribe
     
     
@@ -187,8 +185,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         successes = failures = 0;
         client = httpClient == null?        // if passed httpClient is null
                 new OkHttpClient( ) :       // create a new default client; if not
-                httpClient                  // use the supplied one
-        ;
+                httpClient;                 // use the supplied one
         disposable = new Disposable() {
             @Override
             public void dispose() {
@@ -207,9 +204,9 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
     
     
     // NEW: constructor that passes a Function to generate a UUID for each request
-    public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient, Function<URL, UUID> supplier ) {
+    public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient, @NonNull Function<URL, UUID> supplier ) {
         this( targetURL, httpClient );   // makes a random UUID which is not used
-        uuidSupplier = supplier;  // non-null means use it
+        uuidSupplier = supplier;         // non-null means use it
     }
     
     
@@ -218,20 +215,16 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         this( targetURL, httpClient, UUID.randomUUID() );  // if no UUID is supplied, generate one
     }
     
-    
     /*
     Alternate with lambdas etc. might work:
     httpRequest = Single.create( emitter -> { <code that calls emitter.onSuccess() and emitter.onError()> } );
      */
     
     
-    
-    
     // after getting the Requester instance, subscribe to this to send the request. It emits Response
     public Single<Response> request( ) {
         return httpRequest /*.subscribeOn( Schedulers.io( ) )*/;  // probably don't need the Schedulers.io bit (OkHttp3 manages?)
     }
-    
     
     
     // set a new URL--UUID doesn't change unless a new one is set (below) or a supplier is active
@@ -246,8 +239,8 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
     }
     
     
-    public UUID getRequestUUID( ) {return requestUUID; }
-    public URL getURL( ) {return theURL; }
+    public UUID getRequestUUID( ) { return requestUUID; }
+    public URL getURL( ) { return theURL; }
     
     public int getSuccessCount() { return successes; }
     public int getFailureCount() { return failures; }

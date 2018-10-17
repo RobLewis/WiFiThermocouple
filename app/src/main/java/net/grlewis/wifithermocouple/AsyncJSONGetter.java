@@ -95,49 +95,52 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         public void subscribe( final SingleEmitter<JSONObject> emitter ) throws Exception {
             
             if( emitter == null ) throw new NullPointerException( "Can't subscribe with a null SingleEmitter" );
-            
-            if( uuidSupplier != null ) requestUUID = uuidSupplier.apply( theURL );
-            
+            if( uuidSupplier != null ) requestUUID = uuidSupplier.apply( theURL );  // get a custom UUID if available
             Request request = new Request.Builder( )
                     .url( theURL )
-                    .tag( UUID.class, requestUUID )  // added from HTTP Requester
+                    .tag( UUID.class, requestUUID )
                     .build( );
-            
+            disposed = false;
             savedCall = client.newCall( request );
-            
             emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
-            
             if( DEBUG ) Log.d( TAG, "About to enqueue JSON request UUID " + requestUUID.toString() );
             
             savedCall.enqueue( new Callback( ) {
                 // Note callback is made after the response headers are ready. Reading the response body may still block.
+                // Note a Single can only have onSuccess() and onError() outcomes. Both should dispose the subscription, right?
+                // This should mean our Disposable is called on every request, no?
+                // Perhaps only our Disposable should set the disposed flag (it can only be disposed by subscriber, right?)
                 
                 @Override
                 // Called when the request could not be executed due to cancellation, a connectivity problem or timeout.
                 // Because networks can fail during an exchange, it is possible that the remote server accepted the request before the failure.
+                // does emitter call the Disposabale we gave it here? Seems likely
                 public void onFailure( @NonNull Call call, @NonNull IOException e ) {
                     failures++;
-                    // TODO:  should we set disposed here? Maybe not--retries should be possible, right?
-                    // tryOnError() returns false if sequence has been cancelled by downstream, or otherwise terminated
+                    // tryOnError() returns true if the error was signaled,
+                    // false if sequence has been cancelled by downstream, or otherwise terminated
+                    // (meaning that the downstream is not able to accept further events)
                     if( !emitter.tryOnError( new IOException( TAG + ": onFailure Callback while starting JSON request with UUID: "
                             + requestUUID.toString() + ": " + e.getMessage(), e ) ) ) {
-                        Log.d( TAG, "JSON request UUID " + requestUUID.toString()
+                        if( DEBUG ) Log.d( TAG, "JSON request UUID " + requestUUID.toString()
                                 + " canceled before failure received" );
                     } else {  // Throwable was emitted because sequence still alive
-                        disposed = true;  // TODO: right? Error disposes?
+                        //disposed = true;  // TODO: right? Error disposes?
                         if( DEBUG ) Log.d( TAG, "onFailure callback for request UUID "
                                 + requestUUID.toString() + "signaled IOException: " + e.getMessage() );
                     }
-                    failures++;
                 }
                 
                 @Override
+                // called when the server returns a (presumably well-formed) response (which may not be a success)
                 public void onResponse( @NonNull Call call, @NonNull Response response ) {
                     if( !emitter.isDisposed() ) {  // perhaps the request was canceled before response received?
                         if ( !response.isSuccessful( ) ) {
                             emitter.onError( new IOException( TAG + ": JSON request UUID " + requestUUID.toString()
                                     + " failed with HTTP status: " + response.message( ) ) );
-                            disposed = true;  // TODO: right?
+                            if( DEBUG) Log.d( TAG, "JSON request UUID " + requestUUID.toString()
+                                    + " failed with HTTP status: " + response.message( ) );
+                            //disposed = true;  // TODO: right? maybe not--leave it to our Disposable?
                             failures++;
                         } else {  // successful response
                             try {
@@ -148,36 +151,41 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                                 JSONObject returnedJSON = null;
                                 
                                 if ( (contentType = headers.get( "Content-type" )).equalsIgnoreCase( "application/json" ) ) {
-                                    try /*( response )*/ {  // apparent bug, "not supported"
+                                    try /*( response )*/ {  // FIXME: apparent bug, "try with resources not supported"
                                         returnedJSON = new JSONObject( responseBody.string( ) );
                                         returnedJSON.put( "RequestUUID", requestUUID.toString() );  // add the request UUID
                                     } catch ( JSONException j ) {
                                         emitter.onError( new JSONException( TAG + ": Invalid JSON returned from fetch (request UUID "
                                                 + requestUUID.toString() + "): " + j.getMessage( ) ) );
+                                        if( DEBUG ) Log.d( TAG, "Invalid JSON returned from fetch (request UUID "
+                                                + requestUUID.toString() + "): " + j.getMessage( ) );
                                     }
-                                    emitter.onSuccess( returnedJSON );
+                                    emitter.onSuccess( returnedJSON );  // Pay dirt!
                                     successes++;
-                                } else {  // content type not JSON
+                                } else {  // content type not JSON (or missing header, I guess)
                                     emitter.onError( new JSONException(
                                             TAG + ": Returned content type header (request UUID "
-                                                    + requestUUID.toString() + "): is not JSON but " + contentType ) );
+                                                    + requestUUID.toString() + ") is not JSON but " + contentType ) );
+                                    if( DEBUG ) Log.d( TAG, "Returned content type header (request UUID "
+                                            + requestUUID.toString() + ") is not JSON  but " + contentType );
                                     failures++;
                                 }
                             } catch ( IOException e ) {
                                 emitter.onError( new IOException( TAG + ": Error fetching JSON from URL "
-                                        + theURL.toString( ) + " (request UUID: " + requestUUID.toString() + ")", e ) );
+                                        + theURL.toString( ) + " (request UUID: " + requestUUID.toString() + ") ", e ) );
+                                if( DEBUG ) Log.d( TAG, "Error fetching JSON from URL " + theURL.toString( )
+                                        + " (request UUID: " + requestUUID.toString() + ") ", e );
                                 failures++;
                             }
                         }  // else successful response
                     } else {  // emitter has been disposed (TODO: not a success or a failure?)
                         if( DEBUG ) Log.d( TAG, "JSON request UUID " + requestUUID.toString()
-                                + " subscription disposed before response received" );
+                                + " subscription disposed before response received?  Emitter disposed? " + emitter.isDisposed() );
                     }
                     response.close();  // always do this
                 }  // onResponse()
             } );  // Callback & enqueue()
             
-            disposed = false;
             
         }  // subscribe
         
@@ -239,19 +247,19 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         }  // call()*/
         
         
-    }  // class JSONGetterOnSubscribe
+    }  // internal class JSONGetterOnSubscribe
     
     
-    // constructor
+    // constructors
+    
     public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient, UUID requestID ) {
         getJSON = Single.create( new JSONGetterOnSubscribe( ) );
         theURL = jsonURL;
         requestUUID = requestID;
         successes = failures = 0;
         client = httpClient == null?            // and passed httpClient is also null
-                new OkHttpClient( ) :  // create a new default client; if passed httpClient is not null
-                httpClient             // use it
-        ;
+                new OkHttpClient( ) :           // create a new default client; if passed httpClient is not null
+                httpClient;                     // use it
         disposable = new Disposable() {
             @Override
             public void dispose() {
@@ -269,13 +277,11 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
     }  // primary constructor
     
     
-    // NEW: constructor that specifies that request IDs should be auto-generated on each .subscribe()
-    public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient, Function<URL, UUID> supplier ) {
+    // NEW: constructor that specifies that request IDs should be generated on each .subscribe() with supplied function
+    public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient, @NonNull Function<URL, UUID> supplier ) {
         this( jsonURL, httpClient );
-        uuidSupplier = supplier;  // non-null means use it
+        uuidSupplier = supplier;       // non-null means use it
     }
-    
-    
     
     
     // constructor that supplies a random request UUID if we don't
@@ -306,8 +312,8 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         return this;
     }
     
-    public UUID getRequestUUID( ) {return requestUUID; }
-    public URL getURL( ) {return theURL; }
+    public UUID getRequestUUID( ) { return requestUUID; }
+    public URL getURL( ) { return theURL; }
     
     public int getSuccessCount() { return successes; }
     public int getFailureCount() { return failures; }
