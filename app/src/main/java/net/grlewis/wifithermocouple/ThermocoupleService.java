@@ -55,13 +55,9 @@ public class ThermocoupleService extends Service {
     
     
     Disposable watchdogEnableDisp;
-    AsyncHTTPRequester watchdogEnabler;
     Disposable watchdogFeedingDisp;
-    AsyncHTTPRequester watchdogFeeder;
-    Observable<Response> watchdogIntervalFeeder;
     Disposable tempUpdateDisp;
     AsyncJSONGetter tempGetter;
-    Observable<Float> tempIntervalUpdater;
     
     
     
@@ -94,6 +90,7 @@ public class ThermocoupleService extends Service {
         
         client = new OkHttpClient();
         
+/*
         watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF ) );
         watchdogFeeder = new AsyncHTTPRequester( RESET_WD_URL, client, new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF ) );
         watchdogIntervalFeeder = Observable.interval( WATCHDOG_RESET_SECONDS, TimeUnit.SECONDS )
@@ -109,7 +106,8 @@ public class ThermocoupleService extends Service {
                     return bbqController.getCurrentVariableValue();
                 })   // if all else fails, repeat last value
                 .doOnTerminate( () -> Log.d( TAG, "****** tempIntervalUpdater has been terminated ******" ) );  // occasional errors in JSON were apparently canceling sub
-        
+*/
+    
     }
     
     @Override
@@ -128,7 +126,7 @@ public class ThermocoupleService extends Service {
         if( intent != null ) {  // this is an initial start, not a restart after killing
             
             // first thing to do is enable the watchdog timer
-            watchdogEnableDisp = watchdogEnabler.request().retry( 5L ).subscribe(
+            watchdogEnableDisp = appInstance.wifiCommunicator.watchdogEnabler.request().retry( 5L ).subscribe(
                     okResponse -> {
                         if( DEBUG ) Log.d( TAG, "Watchdog enabled; "
                                 + "watchdogEnableDisp = " + watchdogEnableDisp.toString() );  // logs "DISPOSED"
@@ -141,15 +139,18 @@ public class ThermocoupleService extends Service {
             if( watchdogEnableDisp != null ) serviceCompositeDisp.add( watchdogEnableDisp );  //FIXME: is this the problem?
             
             // now start periodic resets of the watchdog
-            watchdogFeedingDisp = watchdogIntervalFeeder.subscribe(
+            watchdogFeedingDisp = appInstance.wifiCommunicator.watchdogFeedObservable.subscribe(
                     feedingTime -> { if( DEBUG ) Log.d( TAG, "Watchdog fed successfully" ); },
                     feedingErr -> { if( DEBUG ) Log.d( TAG, "Error feeding watchdog: " + feedingErr ); }
             );
             serviceCompositeDisp.add( watchdogFeedingDisp );
             
             // now start temperature updates
-            tempUpdateDisp = tempIntervalUpdater.subscribe(
-                    appInstance.bbqController::setCurrentVariableValue,  // FIXME: was pidState.
+            tempUpdateDisp = appInstance.wifiCommunicator.tempFUpdater
+                    .retry( 3L)
+                    .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ))
+                    .subscribe(
+                    appInstance.bbqController::setCurrentVariableValue,
                     tempErr -> { if( DEBUG ) Log.d( TAG, "****** Error updating temp: " + tempErr + " ******"); }
             );
             serviceCompositeDisp.add( tempUpdateDisp );
@@ -157,8 +158,6 @@ public class ThermocoupleService extends Service {
             
             // start the BBQ Controller loop (we think it's fixed to not change UI and run all the time)
             pidHandler.postDelayed( bbqController.pidLoopRunnable, 2000L );  // give it a couple seconds
-            
-            
             
         } else {  // this is a restart
         

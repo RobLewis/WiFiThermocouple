@@ -197,7 +197,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         // TODO: Disposable?
         appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off
                 .retry( 2 )  // try up to 3 times
-                .observeOn( AndroidSchedulers.mainThread() )
+                //.observeOn( AndroidSchedulers.mainThread()  (already in the source)
                 .subscribe(
                         httpResponse -> {
                             //fanButtonTextPublisher.onNext( "FAN IS INITIALLY OFF" );  // replaced by...
@@ -211,71 +211,6 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
                             toggleFanButton.setText( "Error turning fan off in onStart()" );
                         } );
         
-        // get initial temperature reading
-        // TODO: Disposable?
-//        appInstance.wifiCommunicator.tempFGetter.get()
-//                .observeOn( AndroidSchedulers.mainThread() )
-//                .subscribe( tempJSON -> {
-//                            float tempF = (float)tempJSON.getDouble( "TempF" );
-//                            updateTempButtonTextPublisher.onNext( "INITIAL READING: " + String.valueOf( tempF ) + "°F" );
-//                            appInstance.pidState.setCurrentVariableValue( tempF );
-//                        },
-//                        tempErr -> Log.d( TAG, "Error getting initial temp reading: " + tempErr.getMessage() )
-//                );
-        
-        
-        // initiate periodic temperature updates
-//        tempFUpdaterDisposable = appInstance.wifiCommunicator.tempFUpdater
-//                .retry( 3 )  // TODO: does this help with failures returning null?
-//                .subscribe(
-//                jsonF -> { },
-//                tempErr -> Log.d( TAG, "Error from tempFUpdater: " + tempErr.getMessage() )  // TODO: was this the missing error handler?
-//        );  // keeps pidState updated too
-//        appInstance.onStopDisposables.add( tempFUpdaterDisposable );
-        
-        
-        // enable watchdog timer
-        /*appInstance.wifiCommunicator.watchdogEnableSingle.request()  // returns Single
-                .observeOn( AndroidSchedulers.mainThread() )
-                .subscribe(
-                        response -> { if( DEBUG ) Log.d( TAG, "Watchdog timer enabled" ); },
-                        wdEnableErr -> { if( DEBUG ) Log.d( TAG, "Error enabling watchdog", wdEnableErr );
-                            Toast.makeText( TestActivity.this,
-                                    "Error enabling watchdog: " + wdEnableErr.getMessage(), Toast.LENGTH_SHORT ).show(); }
-                );  // TODO: make sure it worked*/
-
-//        watchdogEnableDisposable = appInstance.wifiCommunicator.enableWatchdogObservable  // dispose to disable
-//                .observeOn( AndroidSchedulers.mainThread() )  // added
-//                .subscribe( response -> { if( DEBUG ) Log.d( TAG, "Watchdog timer enabled" ); },
-//                        wdEnableErr -> { if( DEBUG ) Log.d( TAG, "Error enabling watchdog", wdEnableErr );
-//                            Toast.makeText( TestActivity.this,
-//                                    "Error enabling watchdog: " + wdEnableErr.getMessage(), Toast.LENGTH_SHORT ).show(); });
-//        appInstance.onStopDisposables.add( watchdogEnableDisposable );
-
-
-
-//        // initiate periodic watchdog status checks
-//        watchdogStatusUpdatesDisposable = appInstance.wifiCommunicator.watchdogStatusUpdates
-//                .observeOn( AndroidSchedulers.mainThread() )
-//                .subscribe(
-//                        wdJSON -> {
-//                            if( wdJSON.getBoolean( "WatchdogAlarm" ) ) {  // true if watchdog has timed out
-//                                appInstance.wifiCommunicator.fanControlWithWarning( false )
-//                                        .retry( 3 )
-//                                        .subscribe();  // shut off fan
-//                                Toast.makeText( TestActivity.this, "Watchdog timed out -- aborting!", Toast.LENGTH_LONG ).show();
-//                                pidButtonTextPublisher.onNext( "Watchdog timed out -- aborted!" );
-//                            } else {  // watchdog is OK
-//                                appInstance.wifiCommunicator.watchdogResetSingle
-//                                        .request()
-//                                        .subscribe();
-//                            }
-//                        },
-//                        wdStatusError -> { }  // TODO: error handler
-//                );
-//        appInstance.onStopDisposables.add( watchdogStatusUpdatesDisposable );
-        
-        
         
         
         // TODO: keep?
@@ -283,7 +218,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         //appInstance.bbqController.start();  // don't start ON
 
 
-//        watchdogResetDisposable = appInstance.wifiCommunicator.watchdogResetObservable.subscribe(
+//        watchdogResetDisposable = appInstance.wifiCommunicator.watchdogFeedObservable.subscribe(
 //                response -> { if( DEBUG ) Log.d( TAG, "Watchdog timer reset" ); }
 //        );  // start resetting watchdog timer periodically
 //        appInstance.onStopDisposables.add( watchdogResetDisposable );

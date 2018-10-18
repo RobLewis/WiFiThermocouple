@@ -2,12 +2,9 @@ package net.grlewis.wifithermocouple;
 
 import android.annotation.TargetApi;
 import android.arch.core.util.Function;
-import android.arch.lifecycle.ViewModelProviders;
-import android.util.Log;
 import android.util.Pair;
 import android.widget.Toast;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.net.URL;
@@ -15,25 +12,23 @@ import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Consumer;
 import io.reactivex.subjects.PublishSubject;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
 import static net.grlewis.wifithermocouple.Constants.ANALOG_IN_UPDATE_SECS;
 import static net.grlewis.wifithermocouple.Constants.ANALOG_READ_UPPER_HALF;
-import static net.grlewis.wifithermocouple.Constants.DEBUG;
 import static net.grlewis.wifithermocouple.Constants.DISABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.ENABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_CONTROL_TIMEOUT_SECS;
 import static net.grlewis.wifithermocouple.Constants.FAN_CONTROL_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.FAN_OFF_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_ON_URL;
-import static net.grlewis.wifithermocouple.Constants.HISTORY_MINUTES;
 import static net.grlewis.wifithermocouple.Constants.READ_ANALOG_URL;
 import static net.grlewis.wifithermocouple.Constants.RESET_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
@@ -70,11 +65,25 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     private Function<URL,UUID> watchdogStatusUUIDSupplier;
     private Function<URL,UUID> analogReadUUIDSupplier;
     
-    AsyncJSONGetter tempFGetter;
-    AsyncJSONGetter watchdogStatusGetterSingle;
-    AsyncJSONGetter analogReaderSingle;
     
-    Observable<Float> analogInObservable;
+    // NEW organization
+    AsyncJSONGetter tempFGetter;               // Single that fetches a JSON tempF value
+    Observable<JSONObject> tempFUpdater;       // combines period values into an Observable
+    AsyncJSONGetter watchdogStatusGetter;      // Single that fetches a JSON watchdog status report (enabled, expired)
+    AsyncJSONGetter analogReader;              // Single that fetches a JSON report of control setting (0.0-1.0V)
+    Observable<JSONObject> analogInUpdater;
+    
+    AsyncHTTPRequester watchdogEnabler;
+    AsyncHTTPRequester watchdogDisabler;
+    AsyncHTTPRequester watchdogFeeder;
+    Observable<Response> watchdogFeedObservable;
+    Observable<JSONObject> watchdogStatusUpdater;
+    
+    AsyncHTTPRequester fanTurnon;
+    AsyncHTTPRequester fanTurnoff;
+    
+    
+    
     
     // enable watchdog timer (dispose to disable)
     Observable<Response> enableWatchdogObservable;
@@ -98,170 +107,57 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     // constructor
     WiFiCommunicator() {
-    
-        // providers of custom UUIDs for JSON and HTTP requests (passed the URL, which we ignore and return serialized UUIDs)
-        watchdogEnableUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF, "Watchdog Enabler" );   // 0x1000
-        watchdogFeedUUIDSupplier   = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF, "Watchdog Feeder" );     // 0x2000
-        tempGetUUIDSupplier        = new SerialUUIDSupplier( TEMP_GET_UPPER_HALF, "Temp Getter" );          // 0x3000
-        tempUpdateUUIDSupplier     = new SerialUUIDSupplier( TEMP_UPDATE_UPPER_HALF, "Temp Updater" );       // 0x4000
-        fanControlUUIDSupplier     = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF, "Fan Controller" );       // 0x5000
-        watchdogStatusUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_STATUS_UPPER_HALF, "Watchdog Status Checker" );   // 0x6000
-        analogReadUUIDSupplier     = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF, "Analog Reader" );       // 0x7000
         
-    
+        // providers of custom UUIDs for JSON and HTTP requests (passed the URL, which we ignore and return serialized UUIDs)
+        tempGetUUIDSupplier = new SerialUUIDSupplier( TEMP_GET_UPPER_HALF, "Temp Getter" );          // 0x3000
+        tempUpdateUUIDSupplier = new SerialUUIDSupplier( TEMP_UPDATE_UPPER_HALF, "Temp Updater" );       // 0x4000
+        watchdogStatusUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_STATUS_UPPER_HALF, "Watchdog Status Checker" );   // 0x6000
+        watchdogEnableUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF, "Watchdog Enabler" );   // 0x1000
+        watchdogFeedUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF, "Watchdog Feeder" );     // 0x2000
+        analogReadUUIDSupplier = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF, "Analog Reader" );       // 0x7000
+        
+        fanControlUUIDSupplier = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF, "Fan Controller" );       // 0x5000
+        
+        
         // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
         tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, tempGetUUIDSupplier );
+        tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )  // currently 5 seconds
+                .flatMapSingle( getTempFNow -> tempFGetter.get( ) );  // combines outputs of Singles into an Observable stream
         
-        watchdogStatusGetterSingle = new AsyncJSONGetter( WD_STATUS_URL, client, watchdogStatusUUIDSupplier );
-        analogReaderSingle = new AsyncJSONGetter( READ_ANALOG_URL, client, analogReadUUIDSupplier );
-    
-        analogInObservable = Observable.interval( ANALOG_IN_UPDATE_SECS, TimeUnit.SECONDS )
-                .flatMapSingle( tick -> analogReaderSingle.get() )
-                .retry( 2L )  // NEW (for errors producing HTTP Response)
-                .map( json -> (float) json.getDouble( "AnalogVoltsIn" ) )
-                .retry( 2L )  // NEW (for JSON errors)
-                .doOnNext( volts -> appInstance.pidState.setAnalogInVolts( volts ) );  // (BBQController has no setter, by design)
-                
-    
-        tempHistoryBuffer = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
-        timestampedHistory = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
+        watchdogStatusGetter = new AsyncJSONGetter( WD_STATUS_URL, client, watchdogStatusUUIDSupplier );
+        watchdogStatusUpdater = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )
+                .flatMapSingle( checkWatchdogNow -> watchdogStatusGetter.get( ) );
         
-        enableWatchdogObservable = watchdogEnableSingle.request()  // returns the Single
-                .toObservable()  // convert to Observable that emits one item, then completes.
-                .doOnDispose( () -> {
-                    watchdogDisableSingle.request().subscribe();
-                    if( DEBUG ) Log.d( TAG, "enableWatchdogObservable disposed to disable watchdog" );
-                } );
+        watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, watchdogEnableUUIDSupplier );
+        watchdogDisabler = new AsyncHTTPRequester( DISABLE_WD_URL, client, watchdogEnableUUIDSupplier );  // same supplier
+        watchdogFeeder = new AsyncHTTPRequester( RESET_WD_URL, client, watchdogFeedUUIDSupplier );
+        watchdogFeedObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )  // 40
+                .startWith( -1L )  // kick it off right away TODO: needed?
+                .flatMapSingle( resetNow -> watchdogFeeder.request( ) );
         
-        // TODO: does this work?
-        if( appInstance.testActivityRef == null ) Log.d( TAG, "appInstance.testActivityRef is null" );  // says it's null
-        uiStateModel = ViewModelProviders.of(appInstance.testActivityRef).get( UIStateModel.class );  // NPE
+        analogReader = new AsyncJSONGetter( READ_ANALOG_URL, client, analogReadUUIDSupplier );
+        analogInUpdater = Observable.interval( ANALOG_IN_UPDATE_SECS, TimeUnit.SECONDS )
+                .flatMapSingle( tick -> analogReader.get( ) );
+        
+        fanTurnon = new AsyncHTTPRequester( FAN_ON_URL, client, fanControlUUIDSupplier );
+        fanTurnoff = new AsyncHTTPRequester( FAN_OFF_URL, client, fanControlUUIDSupplier );
+        
         
     }
     
     
-    
-    
-    
-    
-    // Observable to request Watchdog status JSON and reset every 40 seconds
-    // note AsyncJSONGrtter is a Single; this combines the series of Single outputs into an Observable
-    // the .onNext() handler will receive the JSON object
-    // TODO: need?
-    Observable<JSONObject> watchdogStatusUpdates = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )
-            .flatMapSingle( checkWatchdogNow ->  watchdogStatusGetterSingle.get() );  // creates Observable that emits status updates
-    
-    
-    
-    // Observable to request Temperature JSON (°F) [
-    // subscribing to this will periodically update the BBQController temperature value NEW
-    // we may be able to ignore the JSON it emits (subscriber's option, I guess)
-    // note AsyncJSONGetter is a Single; this combines the series of Single outputs into an Observable stream
-    // TODO: maybe add watchdog status query?
-    Observable<JSONObject> tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )  // currently 5 seconds
-            .flatMapSingle( getTempFNow -> tempFGetter.get() )  // combines outputs of Singles into an Observable stream
-            .doOnNext( jsonF -> {
-                
-                float currentTempF;
-                try {
-                    currentTempF = (float) jsonF.getDouble( "TempF" );
-                } catch ( JSONException j ) {
-                    if( DEBUG ) Log.d( TAG, "JSONException on TempF fetch: " + j.getMessage()
-                            + "; JSON: \n" + jsonF.toString( 4 )
-                            + "\nRequest UUID: " + jsonF.optString( "RequestUUID", "(no request UUID in JSON)" ) );
-                    currentTempF = appInstance.pidState.getCurrentVariableValue();  // repeat last value if a problem with new one
-                } finally {
-                }
-                
-                // another idea
-                //currentTempF = (float) jsonF.optDouble( "TempF", appInstance.pidState.getCurrentVariableValue() );  // fallback
-                
-                appInstance.pidState.setCurrentVariableValue( currentTempF );
-                appInstance.testActivityRef.updateTempButtonTextPublisher.onNext( "tempFUpdater set new value: "
-                        + String.valueOf( currentTempF ) );
-
-//                if( appInstance.pidState.isEnabled() ) {  // only keep history if PID is running TODO: (?)
-//                    if ( tempHistoryBuffer.remainingCapacity( ) < 1 )
-//                        tempHistoryBuffer.poll( );  // if buffer is full, discard oldest value
-//                    tempHistoryBuffer.add( currentTempF );  // insert the new value at end of the queue
-//                    if ( DEBUG )
-//                        Log.d( TAG, "History buffer now contains " + tempHistoryBuffer.size( ) + " values" );
-//                }
-//
-//                // alternative keeps value history with timestamps, for now even if PID is disabled.
-//                if( timestampedHistory.remainingCapacity() < 1 ) {  // queue is full
-//                    timestampedHistory.poll();                      // so discard oldest value
-//                }
-//                timestampedHistory.add( new Pair<>( new Date(), currentTempF ) );  // add latest to end of queue
-//                if ( DEBUG ) Log.d( TAG, "timestampedHistory now contains " + timestampedHistory.size( ) + " values" );
-                
-                // alternative with ViewModel TODO: does it work?
-                UIStateModel.UIState uiState = uiStateModel.getUIStateObject();
-                uiState.updateUITemp( currentTempF );  // try to send UI new value
-                int tempHistSize = uiState.addHistoryValue( new Pair<>( new Date(), currentTempF ) );
-                uiStateModel.getCurrentUIState().postValue( uiState );  // can't use .setValue() on a background thread
-                if( DEBUG ) Log.d( TAG, "History queue now contains " + tempHistSize + " values" );
-            } )
-            .doOnTerminate( () -> {
-                if( DEBUG ) Log.d( TAG, "tempFUpdater terminated with " + tempFGetter.getSuccessCount()
-                        + " successes and " + tempFGetter.getFailureCount() + " failures");
-                fanControlSingle( false ).request()
-                        .retry( 5 )  // lots of retries because it's vital
-                        .subscribe(  // if this stops for any reason, shut off fan
-                                response -> { if( DEBUG ) Log.d( TAG, "Successful fan shutoff after tempFUpdater termination"); },  // successful OK response to fan shutoff
-                                fanError -> { if( DEBUG ) Log.d( TAG, "Error shutting off fan (after retries) after tempFUpdater termination: "
-                                        + fanError.getMessage() ); }// TODO: advise of possible emergency}
-                        );
-            })
-            .observeOn( AndroidSchedulers.mainThread() );
-    
-    /*
-     * Usage
-     * Disposable getTempFDisp = getTemperatureF. subscribe(
-     *         jsonTempF -> setCurrentTempF( jsonTempF.getDouble( "TempF" ),  // (there's no getFloat())
-     *         jsonTempFErr -> Log.D( TAG, "Error getting temperature: " + jsonTempFErr.getMessage() );
-     *     )
-     *
-     * */
-    
-    
-    // subscribe to the returned requester to turn fan on or off
-    // TODO: interaction with pidState (see version with warning below, if we even need this)
-    AsyncHTTPRequester fanControlSingle( boolean fanState ) {
-        if( fanState ) {
-            appInstance.appState.setFanState( true );
-            return new AsyncHTTPRequester( FAN_ON_URL, client, fanControlUUIDSupplier );  // trial of auto-generate new UUID per request
-        }
-        else {
-            appInstance.appState.setFanState( false );
-            return new AsyncHTTPRequester( FAN_OFF_URL, client, fanControlUUIDSupplier );  // trial of auto-generate new UUID per request
-        }
+    // method that returns a requester to turn the fan on or off
+    AsyncHTTPRequester fanController( boolean fanState ) {
+        return fanState? fanTurnon : fanTurnoff;
     }
     
-    
-    AsyncHTTPRequester watchdogEnableSingle = new AsyncHTTPRequester( ENABLE_WD_URL, client );
-    AsyncHTTPRequester watchdogDisableSingle = new AsyncHTTPRequester( DISABLE_WD_URL, client );
-    AsyncHTTPRequester watchdogResetSingle = new AsyncHTTPRequester( RESET_WD_URL, client );
-    
-    // subscribe to enable the periodic reset of the watchdog timer
-    Observable<Response> watchdogResetObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )  // 40
-            .startWith( -1L )  // kick it off right away TODO: needed?
-            .flatMapSingle( resetNow -> watchdogResetSingle.request() );
-    
-    
-    
-    
-    
-    // subscribe to the returned requester to get a warning of any problems with fan
+    // subscribe to the returned requester to get a Toast warning of any problems with fan
     // the Single emits the HTTP Response
-    // TODO: this one method refactored for Service (so far)
     Single<Response> fanControlWithWarning( boolean fanState ) {
-        URL fanURL = fanState? FAN_ON_URL : FAN_OFF_URL;
-        return new AsyncHTTPRequester( fanURL, eagerClient, fanControlUUIDSupplier )  // generate (serialized) UUIDs FIXME: problem
+        return fanController( fanState )
                 .request()
                 .retry( 2 )  // new
                 .observeOn( AndroidSchedulers.mainThread() )  // must use UI thread to show a Toast
-                .doOnSuccess( response -> appInstance.pidState.setOutputOn( fanState ) )
                 .doOnError(
                         fanError -> {
                             Toast.makeText( appInstance, "Error controlling fan: " + fanError.getMessage(),
@@ -269,10 +165,32 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                         }
                 );
     }
+
+
+        
+/*
+//        tempHistoryBuffer = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
+//        timestampedHistory = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
+        
+        // TODO: create Observable that you subscribe to to enable the watchdog, and dispose to disable. It never completes.
+        // (like RxBle .establishconnection())
+        
+        Observable<Optional<Integer>> watchDogObservable() {
+            
+            return Observable.never( )
+                    .startWith( Integer.valueOf( 1 ) )
+                    .doOnSubscribe( one -> watchdogEnabler.request().subscribe( ) )
+                    .doOnDispose( () -> watchdogDisabler.request().subscribe( ) )
+                    .map( one -> Optional.empty() );
+            
+        }
+*/
+
+    
     
     // Version that allows passing an error handling Consumer (with an accept() method that returns no result)
     // TODO: needs updating if we want to use it
-    @TargetApi( 24 )  // Consumer requires API 24
+    @TargetApi( 24 )  // Consumer requires API 24 (maybe reactivex doesn't)
     Single<Response> fanControlWithWarning( boolean fanState, Consumer<Throwable> errorHandler ) {
         URL fanURL;
         if( fanState ) {
@@ -287,9 +205,5 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                         errorHandler::accept  // custom error handler TODO: "Consumer" requires API 24 (Android 7)
                 );
     }
-    
-    
-    
-    
     
 }
