@@ -57,7 +57,7 @@ class SerialUUIDSupplier implements Function<URL,UUID> {  // (this Function is f
         if( DEBUG ) Log.d( TAG, "created " + supplierName );
     }
     
-    // constructor that uses a default names of "SerialUUIDSupplier 1" etc.
+    // constructor that uses default names of "SerialUUIDSupplier 1" etc.
     SerialUUIDSupplier( long upperHalf ) {
         this( upperHalf, TAG + " " + instanceNo );
     }

@@ -106,7 +106,12 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         public void subscribe( final SingleEmitter<Response> emitter ) throws Exception {
             
             if( emitter == null ) throw new NullPointerException( TAG + " Can't subscribe with a null SingleEmitter" );
-            if( uuidSupplier != null ) requestUUID = uuidSupplier.apply( theURL );  // generate a custom UUID if available
+            if( uuidSupplier != null ) {
+                requestUUID = uuidSupplier.apply( theURL ); // generate a custom UUID if available
+            } else {    // UUIDSupplier is null
+                if( DEBUG ) Log.d( TAG, "subscribing with null uuidSupplier; UUID is " + requestUUID.toString() );
+            }
+            
             Request request = new Request.Builder( )
                     .url( theURL )
                     .tag( UUID.class, requestUUID )
@@ -114,7 +119,8 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
             disposed = false;
             savedCall = client.newCall( request );
             emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
-            if( DEBUG ) Log.d( TAG, "About to enqueue HTTP request UUID " + requestUUID.toString() );
+            if( DEBUG ) Log.d( TAG, "About to enqueue HTTP request UUID " + requestUUID.toString()
+                    + " from Supplier " + ((SerialUUIDSupplier)uuidSupplier).getName() );  // FIXME: remove cast when debugged );
             
             savedCall.enqueue( new Callback( ) {
                 // Note callback is made after the response headers are ready. Reading the response body may still block.
@@ -182,6 +188,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         httpRequest = Single.create( new HTTPRequesterOnSubscribe( ) );
         theURL = targetURL;
         requestUUID = requestID;
+        uuidSupplier = null;                // set if supplied
         successes = failures = 0;
         client = httpClient == null?        // if passed httpClient is null
                 new OkHttpClient( ) :       // create a new default client; if not
@@ -205,14 +212,17 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
     
     // NEW: constructor that passes a Function to generate a UUID for each request
     public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient, @NonNull Function<URL, UUID> supplier ) {
-        this( targetURL, httpClient );   // makes a random UUID which is not used
+        this( targetURL, httpClient, new UUID( 0xffff, 0xffff ) );   // makes a UUID which is not (supposed to be) used
+        if( supplier == null ) throw new IllegalArgumentException( "****** Goddammit, the UUID Supplier is null! ******" );
+        Log.d( TAG, "UUID supplier class is " + supplier.getClass().getName() );
         uuidSupplier = supplier;         // non-null means use it
     }
     
     
     // constructor that supplies a random request UUID if we don't (client can be null)
     public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient ) {
-        this( targetURL, httpClient, UUID.randomUUID() );  // if no UUID is supplied, generate one
+        this( targetURL, httpClient, /*UUID.randomUUID()*/ new UUID(0xaaaa, 0xbbbb ) );  // FIXME: remove if no UUID is supplied, generate one
+        
     }
     
     /*

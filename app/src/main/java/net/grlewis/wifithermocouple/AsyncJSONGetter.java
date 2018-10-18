@@ -103,7 +103,8 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
             disposed = false;
             savedCall = client.newCall( request );
             emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
-            if( DEBUG ) Log.d( TAG, "About to enqueue JSON request UUID " + requestUUID.toString() );
+            if( DEBUG ) Log.d( TAG, "About to enqueue JSON request UUID " + requestUUID.toString()
+            + " from Supplier " + ((SerialUUIDSupplier)uuidSupplier).getName() );  // FIXME: remove cast when debugged
             
             savedCall.enqueue( new Callback( ) {
                 // Note callback is made after the response headers are ready. Reading the response body may still block.

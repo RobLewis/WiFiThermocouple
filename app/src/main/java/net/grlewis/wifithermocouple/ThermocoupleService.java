@@ -13,6 +13,7 @@ import android.util.Log;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
@@ -128,8 +129,8 @@ public class ThermocoupleService extends Service {
             // first thing to do is enable the watchdog timer
             watchdogEnableDisp = appInstance.wifiCommunicator.watchdogEnabler.request().retry( 5L ).subscribe(
                     okResponse -> {
-                        if( DEBUG ) Log.d( TAG, "Watchdog enabled; "
-                                + "watchdogEnableDisp = " + watchdogEnableDisp.toString() );  // logs "DISPOSED"
+                        if( DEBUG ) Log.d( TAG, "Watchdog enabled; request UUID: " + okResponse.request().tag( UUID.class ).toString()
+                                + "; watchdogEnableDisp = " + watchdogEnableDisp.toString() );  // logs "DISPOSED"
                     },
                     wdEnableErr -> {
                         if( DEBUG ) Log.d( TAG, "Error enabling watchdog; "

@@ -2,6 +2,7 @@ package net.grlewis.wifithermocouple;
 
 import android.annotation.TargetApi;
 import android.arch.core.util.Function;
+import android.os.SystemClock;
 import android.util.Pair;
 import android.widget.Toast;
 
@@ -118,6 +119,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         
         fanControlUUIDSupplier = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF, "Fan Controller" );       // 0x5000
         
+        SystemClock.sleep( 2000L );  // FIXME: is it conceivable we have to wait for these constructors?
         
         // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
         tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, tempGetUUIDSupplier );
