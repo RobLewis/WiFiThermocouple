@@ -58,6 +58,7 @@ public class ThermocoupleService extends Service {
     Disposable watchdogEnableDisp;
     Disposable watchdogFeedingDisp;
     Disposable tempUpdateDisp;
+    Disposable watchdogMaintainDisp;  // NEW: to enable, feed, and disable watchdog
     AsyncJSONGetter tempGetter;
     
     
@@ -126,6 +127,12 @@ public class ThermocoupleService extends Service {
         
         if( intent != null ) {  // this is an initial start, not a restart after killing
             
+            // NEW: try the new combined "maintain" for the watchdog to enable, feed, and eventually disable
+            watchdogMaintainDisp = appInstance.wifiCommunicator.watchDogMaintainObservable.subscribe();
+            if( watchdogMaintainDisp != null ) serviceCompositeDisp.add( watchdogMaintainDisp );
+            
+            
+/*
             // first thing to do is enable the watchdog timer
             watchdogEnableDisp = appInstance.wifiCommunicator.watchdogEnabler.request().retry( 5L ).subscribe(
                     okResponse -> {
@@ -145,15 +152,16 @@ public class ThermocoupleService extends Service {
                     feedingErr -> { if( DEBUG ) Log.d( TAG, "Error feeding watchdog: " + feedingErr ); }
             );
             serviceCompositeDisp.add( watchdogFeedingDisp );
+*/
             
             // now start temperature updates
             tempUpdateDisp = appInstance.wifiCommunicator.tempFUpdater
                     .retry( 3L)
                     .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ))
                     .subscribe(
-                    appInstance.bbqController::setCurrentVariableValue,
-                    tempErr -> { if( DEBUG ) Log.d( TAG, "****** Error updating temp: " + tempErr + " ******"); }
-            );
+                            appInstance.bbqController::setCurrentVariableValue,
+                            tempErr -> { if( DEBUG ) Log.d( TAG, "****** Error updating temp: " + tempErr + " ******"); }
+                    );
             serviceCompositeDisp.add( tempUpdateDisp );
             
             

@@ -2,7 +2,7 @@ package net.grlewis.wifithermocouple;
 
 import android.annotation.TargetApi;
 import android.arch.core.util.Function;
-import android.os.SystemClock;
+import android.util.Log;
 import android.util.Pair;
 import android.widget.Toast;
 
@@ -12,7 +12,6 @@ import java.net.URL;
 import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
@@ -22,8 +21,10 @@ import io.reactivex.subjects.PublishSubject;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static net.grlewis.wifithermocouple.Constants.ANALOG_IN_UPDATE_SECS;
 import static net.grlewis.wifithermocouple.Constants.ANALOG_READ_UPPER_HALF;
+import static net.grlewis.wifithermocouple.Constants.DEBUG;
 import static net.grlewis.wifithermocouple.Constants.DISABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.ENABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.FAN_CONTROL_TIMEOUT_SECS;
@@ -50,7 +51,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     private final static OkHttpClient eagerClient;  // 5 sec?
     private final static ThermocoupleApp appInstance;
     
-    // buffer for 1 hour of temp history
+    // buffer for 1 hour of temp history  TODO: move?
     private ArrayBlockingQueue<Float> tempHistoryBuffer;  // (use .toArray() to get the whole thing for graphing)
     private ArrayBlockingQueue<Pair<Date,Float>> timestampedHistory;  // with timestamp
     
@@ -83,13 +84,12 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     AsyncHTTPRequester fanTurnon;
     AsyncHTTPRequester fanTurnoff;
     
-    
-    
-    
     // enable watchdog timer (dispose to disable)
     Observable<Response> enableWatchdogObservable;
     PublishSubject<Response> enableAndResetWatchdogSubject;  // subscribe to enable watchdog & start resetting, dispose to disable/stop
     
+    Observable<Long> watchDogMaintainObservable;
+    Observable<Long> watchdogIntervalResetter;
     
     static {  // initializer
         
@@ -101,7 +101,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                 .build();
         
         eagerClient = client.newBuilder()  // TODO: re-evaluate?
-                .readTimeout( FAN_CONTROL_TIMEOUT_SECS, TimeUnit.SECONDS )  // 5 sec? (default is 10)
+                .readTimeout( FAN_CONTROL_TIMEOUT_SECS, SECONDS )  // 5 sec? (default is 10)
                 .build();
     }
     
@@ -116,36 +116,55 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         watchdogEnableUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF, "Watchdog Enabler" );   // 0x1000
         watchdogFeedUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF, "Watchdog Feeder" );     // 0x2000
         analogReadUUIDSupplier = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF, "Analog Reader" );       // 0x7000
-        
         fanControlUUIDSupplier = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF, "Fan Controller" );       // 0x5000
         
-        SystemClock.sleep( 2000L );  // FIXME: is it conceivable we have to wait for these constructors?
+        //SystemClock.sleep( 2000L );  // FIXME: is it conceivable we have to wait for these constructors?
         
         // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
         tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, tempGetUUIDSupplier );
-        tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )  // currently 5 seconds
+        tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, SECONDS )  // currently 5 seconds
                 .flatMapSingle( getTempFNow -> tempFGetter.get( ) );  // combines outputs of Singles into an Observable stream
         
         watchdogStatusGetter = new AsyncJSONGetter( WD_STATUS_URL, client, watchdogStatusUUIDSupplier );
-        watchdogStatusUpdater = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )
+        watchdogStatusUpdater = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )
                 .flatMapSingle( checkWatchdogNow -> watchdogStatusGetter.get( ) );
         
         watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, watchdogEnableUUIDSupplier );
         watchdogDisabler = new AsyncHTTPRequester( DISABLE_WD_URL, client, watchdogEnableUUIDSupplier );  // same supplier
         watchdogFeeder = new AsyncHTTPRequester( RESET_WD_URL, client, watchdogFeedUUIDSupplier );
-        watchdogFeedObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, TimeUnit.SECONDS )  // 40
+        watchdogFeedObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )  // 40
                 .startWith( -1L )  // kick it off right away TODO: needed?
                 .flatMapSingle( resetNow -> watchdogFeeder.request( ) );
         
         analogReader = new AsyncJSONGetter( READ_ANALOG_URL, client, analogReadUUIDSupplier );
-        analogInUpdater = Observable.interval( ANALOG_IN_UPDATE_SECS, TimeUnit.SECONDS )
+        analogInUpdater = Observable.interval( ANALOG_IN_UPDATE_SECS, SECONDS )
                 .flatMapSingle( tick -> analogReader.get( ) );
         
         fanTurnon = new AsyncHTTPRequester( FAN_ON_URL, client, fanControlUUIDSupplier );
         fanTurnoff = new AsyncHTTPRequester( FAN_OFF_URL, client, fanControlUUIDSupplier );
         
+        // NEW: used by watchdogEnableObservable below
+        watchdogIntervalResetter = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )
+                .map( resetTime -> {
+                    watchdogFeeder.request().retry( 2L ).subscribe();
+                    if( DEBUG ) Log.d( TAG, "watchdog fed by watchdogIntervalResetter" );
+                    return resetTime;
+                } );  // Single
+        
+        // NEW: subscribe to enable the watchdog and start feeding, unsubscribe to disable
+        // TODO: test; should replace other schemes
+        watchDogMaintainObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )
+                .doOnSubscribe( disposable -> watchdogEnabler.request().retry( 2L ).subscribe( ) )
+                .map( resetTime -> {
+                    watchdogFeeder.request().retry( 2L ).subscribe();
+                    if( DEBUG ) Log.d( TAG, "watchdog fed by watchdogMaintainObservable" );
+                    return resetTime;
+                })
+                .doOnDispose( () -> watchdogDisabler.request().retry( 2L ).subscribe( ) );
         
     }
+    
+
     
     
     // method that returns a requester to turn the fan on or off
@@ -176,18 +195,23 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         
         // TODO: create Observable that you subscribe to to enable the watchdog, and dispose to disable. It never completes.
         // (like RxBle .establishconnection())
+        // idea: this Observable emits (one) other Observable that you subscribe to to start periodic resets, unsubscribe to stop.
         
-        Observable<Optional<Integer>> watchDogObservable() {
+        Observable<Observable<Long>> watchDogMaintainObservable() {
             
             return Observable.never( )
-                    .startWith( Integer.valueOf( 1 ) )
-                    .doOnSubscribe( one -> watchdogEnabler.request().subscribe( ) )
-                    .doOnDispose( () -> watchdogDisabler.request().subscribe( ) )
-                    .map( one -> Optional.empty() );
+                    .startWith( watchdogIntervalResetter )
+                    .doOnSubscribe( disposable -> watchdogEnabler.request().subscribe( ) )
+                    .doOnDispose( () -> watchdogDisabler.request().subscribe( ) );
             
         }
+        
+        // The inner Observable just emits the interval sequence number on each reset
+        Observable<Long> watchdogIntervalResetter = Observable.interval( secs, SECONDS )
+                .map( resetTime -> { watchdogResetter.request().subscribe(); return resetTime; } );  // Single
+                
 */
-
+    
     
     
     // Version that allows passing an error handling Consumer (with an accept() method that returns no result)

@@ -73,12 +73,6 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     
     Disposable pidParameterChangesDisp;   // Service impl
     CompositeDisposable serviceImplDisp;  // Service impl
-
-//    // TODO: get rid of these(?)
-//    Subject<String> fanButtonTextPublisher;         // onNext() called to emit text to be displayed by fan state button (or other subs)
-//    Subject<String> updateTempButtonTextPublisher;  // onNext() called to emit text to be displayed by temp update button (or other subs)
-//    Subject<String> pidButtonTextPublisher;         // onNext() called to emit text to be displayed by PID enable/disable button (or other subs)
-//    Subject<String> setTempButtonTextPublisher;     // onNext() called to emit text to be displayed by PID enable/disable button (or other subs)
     
     // attempt at ViewModel to save temp history  TODO: dump? (all Rx)
     private UIStateModel uiStateModel;
@@ -115,15 +109,6 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         //tempSliderObservable = RxSeekBar.changes( tempSlider );                  // replaced by...
         tempSliderEventObservable = RxSeekBar.changeEvents( tempSlider );          // now emits all events, not just motion
         
-        
-        // BehaviorSubject emits its last observed value plus future values to each new subscriber
-        // .toSerialized() converts any kind of Subject to a plain Subject (see above declarations)
-        // TODO: just use .setText?
-//        fanButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe TODO: need serialized? always UI thread?
-//        updateTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();  // thread safe
-//        pidButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
-//        setTempButtonTextPublisher = BehaviorSubject.createDefault( "Uninitialized" ).toSerialized();   // thread safe
-        
         serviceImplDisp= new CompositeDisposable(  );      // for Service impl
         
         uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );  // TODO: dump?
@@ -140,7 +125,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         // Observe the LiveData, passing in this activity as the LifecycleOwner and the observer.
         uiStateModel.getCurrentUIState().observe(this, uiStateObserver );
         
-        appInstance.wifiCommunicator = new WiFiCommunicator();  // moved it from Application because Activity needs to exist first
+        //appInstance.wifiCommunicator = new WiFiCommunicator();  // moved it from Application because Activity needs to exist first
         
         
         FloatingActionButton fab = (FloatingActionButton) findViewById( R.id.fab );  // what TODO with this?
@@ -187,15 +172,12 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         // above is part of Service implementation
         
         
-        //float startingSetpoint = appInstance.pidState.getSetPoint();  // DEFAULT_SETPOINT constant
-        //updateTempButtonTextPublisher.onNext( "INITIAL TEMP SETTING: " + startingSetpoint );
         tempSlider.setProgress( Math.round( appInstance.bbqController.getSetpoint() ) );
-        //pidButtonTextPublisher.onNext( "PID IS INITIALLY DISABLED:" );
         
         // set initial appState
         // make sure fan is off
         // TODO: Disposable?
-        appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off
+        appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off  FIXME: first bad UUID?
                 .retry( 2 )  // try up to 3 times
                 //.observeOn( AndroidSchedulers.mainThread()  (already in the source)
                 .subscribe(
@@ -216,12 +198,6 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         // TODO: keep?
         //setTempButton.setText( "CURRENT TEMP SETTING: " + appInstance.pidState.getSetPoint().toString() + "°F" );
         //appInstance.bbqController.start();  // don't start ON
-
-
-//        watchdogResetDisposable = appInstance.wifiCommunicator.watchdogFeedObservable.subscribe(
-//                response -> { if( DEBUG ) Log.d( TAG, "Watchdog timer reset" ); }
-//        );  // start resetting watchdog timer periodically
-//        appInstance.onStopDisposables.add( watchdogResetDisposable );
         
         
         if( DEBUG ) Log.d( TAG, "Exiting onStart()" );

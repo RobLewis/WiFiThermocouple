@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.UUID;
 import android.arch.core.util.Function;
 
+import io.reactivex.functions.Cancellable;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.OkHttpClient;
@@ -73,6 +74,8 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
     private Call savedCall;       // new stuff to implement Disposable
     private boolean disposed;
     private Disposable disposable;
+    private Cancellable cancellable;  // NEW
+    private HTTPRequesterOnSubscribe requesterOnSubscribe;  // NEW
     
     private Function<URL,UUID> uuidSupplier;  // non-null means use it
     
@@ -105,6 +108,8 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         // subscribe() returns void, not a Disposable
         public void subscribe( final SingleEmitter<Response> emitter ) throws Exception {
             
+            if( DEBUG ) Log.d( TAG, "Is this a subscribe retry? emitter class is " + emitter.getClass().getName() );  // FIXME: remove
+            
             if( emitter == null ) throw new NullPointerException( TAG + " Can't subscribe with a null SingleEmitter" );
             if( uuidSupplier != null ) {
                 requestUUID = uuidSupplier.apply( theURL ); // generate a custom UUID if available
@@ -118,7 +123,8 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                     .build( );
             disposed = false;
             savedCall = client.newCall( request );
-            emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
+            //emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
+            emitter.setCancellable( cancellable );     // NEW
             if( DEBUG ) Log.d( TAG, "About to enqueue HTTP request UUID " + requestUUID.toString()
                     + " from Supplier " + ((SerialUUIDSupplier)uuidSupplier).getName() );  // FIXME: remove cast when debugged );
             
@@ -185,7 +191,8 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
     // constructors
     
     public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient, UUID requestID ) {
-        httpRequest = Single.create( new HTTPRequesterOnSubscribe( ) );
+        requesterOnSubscribe = new HTTPRequesterOnSubscribe();  // NEW
+        httpRequest = Single.create( requesterOnSubscribe );
         theURL = targetURL;
         requestUUID = requestID;
         uuidSupplier = null;                // set if supplied
@@ -193,13 +200,13 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         client = httpClient == null?        // if passed httpClient is null
                 new OkHttpClient( ) :       // create a new default client; if not
                 httpClient;                 // use the supplied one
-        disposable = new Disposable() {
+        disposable = new Disposable() {     // TODO: eliminate
             @Override
             public void dispose() {
                 if( !savedCall.isExecuted() ) savedCall.cancel();  // TODO: 'if' seems to have fixed crash (but why is .dispose() getting called twice for some requests?
                 disposed = true;
-                if( DEBUG ) Log.d( TAG, ".dispose() called for HTTP request ID " + requestID.toString()
-                        + "; savedCall executed? " + savedCall.isExecuted() );
+                if( DEBUG ) Log.d( TAG, ".dispose() called for HTTP request ID " + requestUUID.toString()
+                        + " to URL " + theURL.toString() + "; savedCall executed? " + savedCall.isExecuted() );  // FIXME:
             }
             @Override
             public boolean isDisposed() {
@@ -207,13 +214,25 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                 return disposed;
             }
         };  // disposable
+        cancellable = new Cancellable( ) {  // NEW try this?
+            @Override
+            public void cancel( ) throws Exception {
+                if( !savedCall.isExecuted() ) savedCall.cancel();
+                if( DEBUG ) Log.d( TAG, ".cancel() called for HTTP request ID " + requestUUID.toString()
+                        + " to URL " + theURL.toString() + "; savedCall executed? " + savedCall.isExecuted() );  // FIXME:
+            }
+        };  // cancellable
     }  // primary constructor
     
     
     // NEW: constructor that passes a Function to generate a UUID for each request
     public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient, @NonNull Function<URL, UUID> supplier ) {
         this( targetURL, httpClient, new UUID( 0xffff, 0xffff ) );   // makes a UUID which is not (supposed to be) used
-        if( supplier == null ) throw new IllegalArgumentException( "****** Goddammit, the UUID Supplier is null! ******" );
+        if( supplier == null ) {
+            throw new IllegalArgumentException( "****** Goddammit, the UUID Supplier is null! ******" );
+        } else {
+            if( DEBUG ) Log.d( TAG, "Constructor passed supplier " + ((SerialUUIDSupplier)supplier).getName() ); // TODO: elim cast
+        }
         Log.d( TAG, "UUID supplier class is " + supplier.getClass().getName() );
         uuidSupplier = supplier;         // non-null means use it
     }
@@ -222,7 +241,6 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
     // constructor that supplies a random request UUID if we don't (client can be null)
     public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient ) {
         this( targetURL, httpClient, /*UUID.randomUUID()*/ new UUID(0xaaaa, 0xbbbb ) );  // FIXME: remove if no UUID is supplied, generate one
-        
     }
     
     /*

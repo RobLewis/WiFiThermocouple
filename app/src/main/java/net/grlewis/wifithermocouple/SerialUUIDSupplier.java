@@ -4,6 +4,7 @@ import android.arch.core.util.Function;
 import android.util.Log;
 
 import java.net.URL;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -54,7 +55,7 @@ class SerialUUIDSupplier implements Function<URL,UUID> {  // (this Function is f
         name = supplierName;
         instanceNo++;            // bump instance no. even if not using it to generate names
         initialized = true;
-        if( DEBUG ) Log.d( TAG, "created " + supplierName );
+        if( DEBUG ) Log.d( TAG, "created " + supplierName + " at " + new Date() );
     }
     
     // constructor that uses default names of "SerialUUIDSupplier 1" etc.
