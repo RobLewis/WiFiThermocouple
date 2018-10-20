@@ -13,6 +13,7 @@ import io.reactivex.Single;
 import io.reactivex.SingleEmitter;
 import io.reactivex.SingleOnSubscribe;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Cancellable;
 import okhttp3.Headers;
 import okhttp3.ResponseBody;
 import java.io.IOException;
@@ -59,6 +60,8 @@ import static net.grlewis.wifithermocouple.Constants.DEBUG;
  *  *                 --( URL, client, Function<URL, UUID> uuidSupplier ) called before each request, passing URL & returning a UUID
  *  *
  *  *             (also have setURL and setUUID methods)
+ *
+ *  2018-10-19: back-porting changes/fixes from HTTP requester
  */
 
 public class AsyncJSONGetter {  // updating from GlucometerApp version to use RxJava2
@@ -75,6 +78,8 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
     private Call savedCall;       // new stuff to implement Disposable
     private boolean disposed;
     private Disposable disposable;
+    private Cancellable cancellable;  // NEW
+    private JSONGetterOnSubscribe requesterOnSubscribe;  // NEW
     
     private Function<URL,UUID> uuidSupplier;  // non-null means use it
     
@@ -93,16 +98,24 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         // Note that Emitter adds setCancellable(), setDisposable(), isDisposed() and tryOnError() to the basic Observer
         // subscribe() returns void, not a Disposable
         public void subscribe( final SingleEmitter<JSONObject> emitter ) throws Exception {
+    
+            if( DEBUG ) Log.d( TAG, "Is this a subscribe retry? emitter class is " + emitter.getClass().getName() );  // FIXME: remove
             
-            if( emitter == null ) throw new NullPointerException( "Can't subscribe with a null SingleEmitter" );
-            if( uuidSupplier != null ) requestUUID = uuidSupplier.apply( theURL );  // get a custom UUID if available
+            if( emitter == null ) throw new NullPointerException( TAG + "Can't subscribe with a null SingleEmitter" );
+            if( uuidSupplier != null ) {
+                requestUUID = uuidSupplier.apply( theURL ); // generate a custom UUID if available
+            } else {    // UUIDSupplier is null
+                if( DEBUG ) Log.d( TAG, "JSONGetter subscribing with null uuidSupplier; UUID is " + requestUUID.toString() );
+            }
+            
             Request request = new Request.Builder( )
                     .url( theURL )
                     .tag( UUID.class, requestUUID )
                     .build( );
             disposed = false;
             savedCall = client.newCall( request );
-            emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
+            //emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
+            emitter.setCancellable( cancellable );       // NEW
             if( DEBUG ) Log.d( TAG, "About to enqueue JSON request UUID " + requestUUID.toString()
             + " from Supplier " + ((SerialUUIDSupplier)uuidSupplier).getName() );  // FIXME: remove cast when debugged
             
@@ -254,9 +267,11 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
     // constructors
     
     public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient, UUID requestID ) {
-        getJSON = Single.create( new JSONGetterOnSubscribe( ) );
+        requesterOnSubscribe = new JSONGetterOnSubscribe();  // NEW
+        getJSON = Single.create( requesterOnSubscribe );
         theURL = jsonURL;
         requestUUID = requestID;
+        uuidSupplier = null;
         successes = failures = 0;
         client = httpClient == null?            // and passed httpClient is also null
                 new OkHttpClient( ) :           // create a new default client; if passed httpClient is not null
@@ -266,8 +281,8 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
             public void dispose() {
                 if( !savedCall.isExecuted() ) savedCall.cancel();  // TODO: this seems to have fixed crash (but why is .dispose() getting called twice for some requests?
                 disposed = true;
-                if( DEBUG ) Log.d( TAG, ".dispose() called for JSON request ID " + requestID.toString()
-                        + "; savedCall executed? " + savedCall.isExecuted() );
+                if( DEBUG ) Log.d( TAG, ".dispose() called for JSON request ID " + requestUUID.toString()
+                        + " to URL " + theURL.toString() + "; savedCall executed? " + savedCall.isExecuted() );
             }
             @Override
             public boolean isDisposed() {
@@ -275,19 +290,33 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
                 return disposed;
             }
         };  // disposable
+        cancellable = new Cancellable( ) {  // NEW try this?
+            @Override
+            public void cancel( ) throws Exception {
+                if( !savedCall.isExecuted() ) savedCall.cancel();
+                if( DEBUG ) Log.d( TAG, ".cancel() called for JSON request ID " + requestUUID.toString()
+                        + " to URL " + theURL.toString() + "; savedCall executed? " + savedCall.isExecuted() );  // FIXME:
+            }
+        };  // cancellable
     }  // primary constructor
     
     
     // NEW: constructor that specifies that request IDs should be generated on each .subscribe() with supplied function
     public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient, @NonNull Function<URL, UUID> supplier ) {
-        this( jsonURL, httpClient );
+        this( jsonURL, httpClient, new UUID( 0xeeee, 0xeeee ) );   // makes a UUID which is not (supposed to be) used
+        if( supplier == null ) {
+            throw new IllegalArgumentException( "****** Goddammit, the UUID Supplier is null! ******" );
+        } else {
+            if( DEBUG ) Log.d( TAG, "Constructor passed supplier " + ((SerialUUIDSupplier)supplier).getName() ); // TODO: elim cast
+        }
+        Log.d( TAG, "UUID supplier class is " + supplier.getClass().getName() );
         uuidSupplier = supplier;       // non-null means use it
     }
     
     
     // constructor that supplies a random request UUID if we don't
     public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient ) {
-        this( jsonURL, httpClient, UUID.randomUUID() );
+        this( jsonURL, httpClient, /*UUID.randomUUID()*/ new UUID(0xcccc, 0xdddd ) );  // FIXME: remove if no UUID is supplied, generate one
     }
     
     /*

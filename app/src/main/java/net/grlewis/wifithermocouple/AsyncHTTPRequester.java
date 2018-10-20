@@ -114,7 +114,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
             if( uuidSupplier != null ) {
                 requestUUID = uuidSupplier.apply( theURL ); // generate a custom UUID if available
             } else {    // UUIDSupplier is null
-                if( DEBUG ) Log.d( TAG, "subscribing with null uuidSupplier; UUID is " + requestUUID.toString() );
+                if( DEBUG ) Log.d( TAG, "HTTPRequester subscribing with null uuidSupplier; UUID is " + requestUUID.toString() );
             }
             
             Request request = new Request.Builder( )
@@ -124,7 +124,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
             disposed = false;
             savedCall = client.newCall( request );
             //emitter.setDisposable( disposable );       // is there a default implementation if you use lambdas?
-            emitter.setCancellable( cancellable );     // NEW
+            emitter.setCancellable( cancellable );       // NEW
             if( DEBUG ) Log.d( TAG, "About to enqueue HTTP request UUID " + requestUUID.toString()
                     + " from Supplier " + ((SerialUUIDSupplier)uuidSupplier).getName() );  // FIXME: remove cast when debugged );
             
@@ -150,6 +150,7 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
                 }
                 
                 @Override
+                // called when the server returns a (presumably well-formed) response (which may not be a success)
                 public void onResponse( @NonNull Call call, @NonNull Response response ) {
                     if( !emitter.isDisposed() ) {  // perhaps the request was canceled before response received?
                         if ( !response.isSuccessful( ) ) {  // evidently "successful" just means we got an intelligible response
