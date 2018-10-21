@@ -9,11 +9,14 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
+import android.util.Pair;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Date;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
@@ -27,6 +30,7 @@ import okhttp3.Response;
 import static android.support.v4.app.NotificationCompat.CATEGORY_SERVICE;
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 import static net.grlewis.wifithermocouple.Constants.ENABLE_WD_URL;
+import static net.grlewis.wifithermocouple.Constants.HISTORY_BUFFER_SIZE;
 import static net.grlewis.wifithermocouple.Constants.RESET_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.SERVICE_NOTIFICATION_ID;
 import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
@@ -52,8 +56,6 @@ public class ThermocoupleService extends Service {
     
     ThermocoupleApp appInstance;
     
-    OkHttpClient client;
-    
     
     Disposable watchdogEnableDisp;
     Disposable watchdogFeedingDisp;
@@ -70,8 +72,10 @@ public class ThermocoupleService extends Service {
     Looper pidLooper;
     Handler pidHandler;
     
-    BBQController bbqController;
-    BBQController.PIDLoopRunnable pidLoopRunnable;
+    BBQController bbqController;  // TODO: should this be here?
+    
+    private ArrayBlockingQueue<Pair<Date, Float>> timestampedHistory;
+    
     
     
     @Override
@@ -90,25 +94,7 @@ public class ThermocoupleService extends Service {
         //pidHandler = Handler.createAsync( pidLooper );  // API 28 (no VBL sync)
         bbqController = new BBQController( pidHandler );  // bbqController.pidLoopRunnable should be created
         
-        client = new OkHttpClient();
-        
-/*
-        watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF ) );
-        watchdogFeeder = new AsyncHTTPRequester( RESET_WD_URL, client, new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF ) );
-        watchdogIntervalFeeder = Observable.interval( WATCHDOG_RESET_SECONDS, TimeUnit.SECONDS )
-                .flatMapSingle( resetTime -> watchdogFeeder.request().retry( 5L ) );
-        tempGetter = new AsyncJSONGetter( TEMP_F_URL, client, new SerialUUIDSupplier( TEMP_GET_UPPER_HALF ) );
-        tempIntervalUpdater = Observable.interval( TEMP_UPDATE_SECONDS, TimeUnit.SECONDS )
-                .flatMapSingle( updateTime -> tempGetter.get().retry( 9L ) )
-                .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ) )
-                .retry( 9L )
-                .onErrorReturn( error -> {
-                    if( DEBUG ) Log.d( TAG, "****** Last resort return of previous temp value for error "
-                            + error.getMessage() + ": " + bbqController.getCurrentVariableValue() + " ******");
-                    return bbqController.getCurrentVariableValue();
-                })   // if all else fails, repeat last value
-                .doOnTerminate( () -> Log.d( TAG, "****** tempIntervalUpdater has been terminated ******" ) );  // occasional errors in JSON were apparently canceling sub
-*/
+        timestampedHistory = new ArrayBlockingQueue<>( HISTORY_BUFFER_SIZE );  // 720
     
     }
     
@@ -131,39 +117,20 @@ public class ThermocoupleService extends Service {
             watchdogMaintainDisp = appInstance.wifiCommunicator.watchDogMaintainObservable.subscribe();
             if( watchdogMaintainDisp != null ) serviceCompositeDisp.add( watchdogMaintainDisp );
             
-            
-/*
-            // first thing to do is enable the watchdog timer
-            watchdogEnableDisp = appInstance.wifiCommunicator.watchdogEnabler.request().retry( 5L ).subscribe(
-                    okResponse -> {
-                        if( DEBUG ) Log.d( TAG, "Watchdog enabled; request UUID: " + okResponse.request().tag( UUID.class ).toString()
-                                + "; watchdogEnableDisp = " + watchdogEnableDisp.toString() );  // logs "DISPOSED"
-                    },
-                    wdEnableErr -> {
-                        if( DEBUG ) Log.d( TAG, "Error enabling watchdog; "
-                                + "watchdogEnableDisp = " + watchdogEnableDisp.toString() );
-                    }
-            );
-            if( watchdogEnableDisp != null ) serviceCompositeDisp.add( watchdogEnableDisp );  //FIXME: is this the problem?
-            
-            // now start periodic resets of the watchdog
-            watchdogFeedingDisp = appInstance.wifiCommunicator.watchdogFeedObservable.subscribe(
-                    feedingTime -> { if( DEBUG ) Log.d( TAG, "Watchdog fed successfully" ); },
-                    feedingErr -> { if( DEBUG ) Log.d( TAG, "Error feeding watchdog: " + feedingErr ); }
-            );
-            serviceCompositeDisp.add( watchdogFeedingDisp );
-*/
-            
             // now start temperature updates
             tempUpdateDisp = appInstance.wifiCommunicator.tempFUpdater
                     .retry( 3L)
-                    .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ))
+                    .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ) )
+                    .doOnNext( temp -> {
+                        while( timestampedHistory.remainingCapacity() < 1 ) timestampedHistory.poll();
+                        timestampedHistory.add( new Pair<>( new Date( ), temp ) );
+                    })
                     .subscribe(
+                            // TODO: add smoothing?
                             appInstance.bbqController::setCurrentVariableValue,
-                            tempErr -> { if( DEBUG ) Log.d( TAG, "****** Error updating temp: " + tempErr + " ******"); }
+                            tempErr -> { if( DEBUG ) Log.d( TAG, "****** Error updating temp: " + tempErr.getMessage() + " ******"); }
                     );
             serviceCompositeDisp.add( tempUpdateDisp );
-            
             
             // start the BBQ Controller loop (we think it's fixed to not change UI and run all the time)
             pidHandler.postDelayed( bbqController.pidLoopRunnable, 2000L );  // give it a couple seconds
@@ -183,7 +150,7 @@ public class ThermocoupleService extends Service {
         super.onDestroy( );
     }
     
-    /*------------------------------- START OF SERVICE BINDING STUFF ---------------------------------*/
+/*------------------------------- START OF SERVICE BINDING STUFF ---------------------------------*/
     // Binder given to clients for service--returns this instance of the Service class
     private final IBinder thermoBinder = new LocalBinder();
     // Class for binding Service
@@ -201,7 +168,7 @@ public class ThermocoupleService extends Service {
         // Here can fetch "Extra" info sent with the Intent
         return thermoBinder; // client can call the returned instance with .getService
     }
-    /*-------------------------------- END OF SERVICE BINDING STUFF ----------------------------------*/
+/*-------------------------------- END OF SERVICE BINDING STUFF ----------------------------------*/
     
     
     

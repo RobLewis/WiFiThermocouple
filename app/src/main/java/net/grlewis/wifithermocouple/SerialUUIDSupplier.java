@@ -74,5 +74,8 @@ class SerialUUIDSupplier implements Function<URL,UUID> {  // (this Function is f
     // return the iterator if you want to use it directly
     public Iterator<UUID> getSerialUUIDIterator( ) { return iterator; }
     
+    @Override
+    public String toString( ) {
+        return name;
+    }
 }
-

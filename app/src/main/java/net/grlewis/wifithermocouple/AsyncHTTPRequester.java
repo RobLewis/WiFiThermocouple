@@ -232,16 +232,17 @@ public class AsyncHTTPRequester {  // based on AsyncJSONGetter (now back-porting
         if( supplier == null ) {
             throw new IllegalArgumentException( "****** Goddammit, the UUID Supplier is null! ******" );
         } else {
-            if( DEBUG ) Log.d( TAG, "Constructor passed supplier " + ((SerialUUIDSupplier)supplier).getName() ); // TODO: elim cast
+            if( DEBUG ) Log.d( TAG, "Constructor passed supplier " + supplier.toString() );
         }
-        Log.d( TAG, "UUID supplier class is " + supplier.getClass().getName() );
+        if( DEBUG ) Log.d( TAG, "UUID supplier class is " + supplier.getClass().getName() );
         uuidSupplier = supplier;         // non-null means use it
     }
     
     
     // constructor that supplies a random request UUID if we don't (client can be null)
+    // update: spurious random UUID issue seems to have gone away
     public AsyncHTTPRequester( URL targetURL, OkHttpClient httpClient ) {
-        this( targetURL, httpClient, /*UUID.randomUUID()*/ new UUID(0xaaaa, 0xbbbb ) );  // FIXME: remove if no UUID is supplied, generate one
+        this( targetURL, httpClient, UUID.randomUUID() /*new UUID(0xaaaa, 0xbbbb )*/ );  // old diagnostic UUID
     }
     
     /*

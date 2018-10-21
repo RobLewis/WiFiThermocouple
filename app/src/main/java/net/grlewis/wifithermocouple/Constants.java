@@ -111,6 +111,8 @@ final class Constants {
     
     static final int TEMP_UPDATE_SECONDS = 5;       // seconds between temp polling (can be different from PID period)
     static final int HISTORY_MINUTES = 60;          // how many minutes of temp history to buffer
+    final static int HISTORY_BUFFER_SIZE = 60/TEMP_UPDATE_SECONDS * HISTORY_MINUTES;  // should == 720
+    
     static final int WATCHDOG_CHECK_SECONDS = 60;   // time between checks of enabled/expired JSON, if enabled
     static final int WATCHDOG_RESET_SECONDS = 40;
     static final int FAN_CONTROL_TIMEOUT_SECS = 5;  // can't wait around for fan commands TODO: was 2 too short?
@@ -133,7 +135,7 @@ final class Constants {
     static final long WATCHDOG_ENABLE_UPPER_HALF = 0x1000;
     static final long WATCHDOG_FEED_UPPER_HALF   = 0x2000;
     static final long TEMP_GET_UPPER_HALF        = 0x3000;
-    static final long TEMP_UPDATE_UPPER_HALF     = 0x4000;
+    //static final long TEMP_UPDATE_UPPER_HALF     = 0x4000;
     static final long FAN_CONTROL_UPPER_HALF     = 0x5000;
     static final long WATCHDOG_STATUS_UPPER_HALF = 0x6000;
     static final long ANALOG_READ_UPPER_HALF     = 0x7000;
@@ -147,6 +149,8 @@ final class Constants {
     static final String ACTION_STOP_BG_SERVICE = "net.grlewis.packagename.action.STOP_BG_SERVICE";
     
     static final int SERVICE_NOTIFICATION_ID = 8266;  // unique id for ongoing background notification
+    
+    
     
     
 }

@@ -7,7 +7,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
@@ -34,8 +33,6 @@ import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.subjects.BehaviorSubject;
-import io.reactivex.subjects.Subject;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
@@ -58,21 +55,14 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     //InitialValueObservable<Integer> tempSliderObservable;  // replaced by... (TODO: replace slider?)
     InitialValueObservable<SeekBarChangeEvent> tempSliderEventObservable;  // captures value, start & stop, not just value
     
-    Disposable fanToggleDisposable;
-    Disposable pidToggleDisposable;
-    Disposable tempUpdateDisposable;
-    Disposable setTempButtonTextDisposable;
-    Disposable tempSliderDisposable;
-    Disposable fanButtonTextDisposable;
-    Disposable tempButtonTextDisposable;
-    Disposable tempFUpdaterDisposable;  // periodic updates
-    Disposable pidButtonTextDisposable;
-    Disposable watchdogEnableDisposable;  // disables watchdog when disposed (we hope)
-    Disposable watchdogResetDisposable;
-    Disposable watchdogStatusUpdatesDisposable;
-    
+    Disposable fanToggleDisp;
+    Disposable pidToggleDisp;
+    Disposable tempUpdateDisp;
+    Disposable tempSliderDisp;
     Disposable pidParameterChangesDisp;   // Service impl
-    CompositeDisposable serviceImplDisp;  // Service impl
+    
+    CompositeDisposable onPauseDisp;
+    CompositeDisposable onStopDisp;
     
     // attempt at ViewModel to save temp history  TODO: dump? (all Rx)
     private UIStateModel uiStateModel;
@@ -109,7 +99,8 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         //tempSliderObservable = RxSeekBar.changes( tempSlider );                  // replaced by...
         tempSliderEventObservable = RxSeekBar.changeEvents( tempSlider );          // now emits all events, not just motion
         
-        serviceImplDisp= new CompositeDisposable(  );      // for Service impl
+        onPauseDisp = new CompositeDisposable( );
+        onStopDisp  = new CompositeDisposable( );
         
         uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );  // TODO: dump?
         
@@ -146,10 +137,9 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     protected void onStart( ) {
         
         if( DEBUG ) Log.d( TAG, "Entering onStart()" );
-        
         super.onStart( );
         
-        // part of Service implementation
+        // part of Service implementation (onStart() is a good place to bind Services)
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
         if( !( serviceBound = bindService( bindThermoServiceIntent, /*ServiceConnection interface*/ this, Context.BIND_AUTO_CREATE ) ) ) // flag: create the service if it's bound
             throw new RuntimeException( TAG + ": bindService() call in onStart() failed" );
@@ -167,7 +157,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
                             setTempButton.setText( "Current Setpoint: " + updatedParams.setPoint + "°F" );
                         }
                 );
-        serviceImplDisp.add( pidParameterChangesDisp );
+        onStopDisp.add( pidParameterChangesDisp );  // TODO: dispose in both onStop() and onDestroy() (?)
         
         // above is part of Service implementation
         
@@ -176,29 +166,17 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         
         // set initial appState
         // make sure fan is off
-        // TODO: Disposable?
         appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off  FIXME: first bad UUID?
                 .retry( 2 )  // try up to 3 times
-                //.observeOn( AndroidSchedulers.mainThread()  (already in the source)
                 .subscribe(
                         httpResponse -> {
-                            //fanButtonTextPublisher.onNext( "FAN IS INITIALLY OFF" );  // replaced by...
                             toggleFanButton.setText( "FAN IS INITIALLY OFF" );
-                            //appInstance.pidState.setOutputOn( false );  // fanControlWithWarning takes care of this
                         },
                         httpError -> {
                             Toast.makeText( TestActivity.this, "Fan shutoff in onStart() failed after retries"
                                     + httpError.getMessage(), Toast.LENGTH_LONG ).show();
-                            //fanButtonTextPublisher.onNext( "Error turning fan off in onStart()" );  // replaced by...
                             toggleFanButton.setText( "Error turning fan off in onStart()" );
                         } );
-        
-        
-        
-        // TODO: keep?
-        //setTempButton.setText( "CURRENT TEMP SETTING: " + appInstance.pidState.getSetPoint().toString() + "°F" );
-        //appInstance.bbqController.start();  // don't start ON
-        
         
         if( DEBUG ) Log.d( TAG, "Exiting onStart()" );
     }
@@ -207,65 +185,45 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     protected void onResume( ) {
         
         if( DEBUG ) Log.d( TAG, "Entering onResume()" );
-        
         super.onResume( );
         
         // handle clicks on the Fan On/Off button: switch fan and update button text
         // TODO: not part of final system?
-        fanToggleDisposable = fanToggleObservable
+        fanToggleDisp = fanToggleObservable
                 //.skipInitialValue()  // discard the immediate emission on subscription TODO: does this work?
                 .skip( 1L )
                 .subscribe(
                         newFanState -> {  // fan on/off button clicked
                             //appInstance.pidState.setOutputOn( newFanState );
                             appInstance.bbqController.setOutputOn( newFanState );  // NEW
-//                            appInstance.wifiCommunicator.fanControlWithWarning( newFanState )
-//                                    .observeOn( AndroidSchedulers.mainThread() )
-//                                    //.subscribe( httpResponse -> toggleFanButton.setText( newFanState? "FAN IS ON" : "FAN IS OFF" ) );
-//                                    .subscribe(
-//                                            response -> {
-//                                                toggleFanButton.setText( newFanState? "Fan turned on with button" : "Fan turned off with button" );
-//                                                if( DEBUG ) Log.d( TAG, newFanState? "Fan turned on with button" : "Fan turned off with button" );
-//                                            },
-//                                            fanSwitchErr -> Log.d( TAG, "Error manually switching fan: " + fanSwitchErr.getMessage() )
-//                                    );
                         },
                         fanToggleErr -> {
                             Log.d( TAG, "Error getting fan button click: " + fanToggleErr.getMessage() );
                         }  // TODO (note we get a warning)
                 );
-        appInstance.onPauseDisposables.add( fanToggleDisposable );
-        
+        onPauseDisp.add( fanToggleDisp );
         
         // handle click events for toggle button to enable/disable PID
-        pidToggleDisposable = pidToggleObservable
+        pidToggleDisp = pidToggleObservable
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(
                         newPidState -> {
-                            //appInstance.appState.enablePid( newPidState );  // TODO: need? (just sets appState.pidEnabled)
-//                            appInstance.pidState.setEnabled( newPidState );
                             if( newPidState ) {  // enable the PID
                                 appInstance.bbqController.start();  // NEW
-//                                if( appInstance.bbqController.start() ) {
-//                                    pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped( )?
-//                                            "PID is enabled (clamped)" : "PID is enabled" );
-//                                    if ( DEBUG ) Log.d( TAG, "PID start command succeeded" );
-//                                } else { // problem starting
-//                                    if( DEBUG ) Log.d( TAG, "Attempt to start PID failed");
-//                                }
                             } else {  // disable the PID
                                 appInstance.bbqController.stop();  // remove handler scheduled tasks, stop fan, set disabled
                                 if( DEBUG ) Log.d( TAG, "Attempting to stop PID" );
                             }
                         },
-                        pidToggleErr -> { Log.d( TAG, "Error with pidToggleObservable: "
-                                + pidToggleErr.getMessage(), pidToggleErr );}  // TODO
+                        pidToggleErr -> {
+                            Log.d( TAG, "Error with pidToggleObservable: "
+                                + pidToggleErr.getMessage(), pidToggleErr );
+                        }
                 );
-        appInstance.onPauseDisposables.add( pidToggleDisposable );
+        onPauseDisp.add( pidToggleDisp );
         
-        
-        // handle clicks on the temperature update button (manual update)
-        tempUpdateDisposable = tempUpdateObservable.subscribe(
+        // handle clicks on the temperature update button (manual update) TODO: so far only affects UI, not PID
+        tempUpdateDisp = tempUpdateObservable.subscribe(
                 click -> appInstance.wifiCommunicator.tempFGetter.get()
                         .map( tempJSON -> (float) tempJSON.getDouble( "TempF" ) )  // NEW
                         .retry( 2 )  // NEW: get a bad reading occasionally
@@ -278,71 +236,47 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
                                 tempErr -> {
                                     updateTempButton.setText( "Manual temp update error: "
                                             + tempErr.getMessage() );
-                                    if( DEBUG ) Log.d( TAG, "Error getting temp update: " + tempErr.getMessage() );
+                                    if( DEBUG ) Log.d( TAG, "Error getting manual temp update: " + tempErr.getMessage() );
                                 }
                         )
         );
-        appInstance.onPauseDisposables.add( tempUpdateDisposable );
+        onPauseDisp.add( tempUpdateDisp );
         
         
         
-        tempSliderDisposable = tempSliderEventObservable
+        tempSliderDisp = tempSliderEventObservable
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(  // now emits SeekBarChangeEvent
-//                newValue -> { setTempButton.setText( "SETPOINT: " + String.valueOf( newValue ) + "°F" );
-//                    appInstance.pidState.set( Float.valueOf( newValue ) );
-//                }
                         newEvent -> {
                             if( newEvent instanceof SeekBarProgressChangeEvent ) {
                                 setTempButton.setText( "SETPOINT: "
                                         + String.valueOf( ((SeekBarProgressChangeEvent) newEvent).progress() ) + "°F" );
                             } else if( newEvent instanceof SeekBarStopChangeEvent ) {
-                                appInstance.bbqController.set( (float) tempSlider.getProgress() );  // FIXME: wasn't goin through BBQController
+                                appInstance.bbqController.set( (float) tempSlider.getProgress() );  // FIXME: wasn't going through BBQController
                                 if( DEBUG ) Log.d( TAG, "Setpoint changed to " + tempSlider.getProgress() );
                             }
                         }
                 );
-        appInstance.onPauseDisposables.add( tempSliderDisposable );
-        
-        
+        onPauseDisp.add( tempSliderDisp );
         
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
-        
     }  // onResume
     
     
     @Override
     protected void onPause( ) {
         if( DEBUG ) Log.d( TAG, "Entering onPause()" );
-        
-//        fanToggleDisposable.dispose();   // TODO: combine these into a Composite Disposable
-//        pidToggleDisposable.dispose();
-//        tempUpdateDisposable.dispose();  // listener for clicks on temp button
-//        tempSliderDisposable.dispose();
-//        fanButtonTextDisposable.dispose();
-//        tempButtonTextDisposable.dispose();
-//        pidToggleDisposable.dispose();
-//        setTempButtonTextDisposable.dispose();
-        
-        appInstance.onPauseDisposables.clear();
-        
+        onPauseDisp.clear();
         super.onPause( );
-        
         if( DEBUG ) Log.d( TAG, "Exiting onPause()" );
     }
+    
     
     @Override
     protected void onStop( ) {
         if( DEBUG ) Log.d( TAG, "Entering onStop()" );
-        
-        //tempFUpdaterDisposable.dispose();           // turn off periodic temp updates  FIXME: crash NPE
-        serviceImplDisp.clear();              // new composite for Service implementation
-        
-        //watchdogEnableDisposable.dispose();         // disable watchdog  FIXME: crash NPE
-        //watchdogStatusUpdatesDisposable.dispose();  // stop getting watchdog status updates
-        //watchdogResetDisposable.dispose();          // stop resetting watchdog timer
+        onStopDisp.clear();              // new composite for Service implementation
         super.onStop( );
-        
         if( DEBUG ) Log.d( TAG, "Exiting onStop()" );
     }
     
@@ -356,6 +290,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         } else {
             if( DEBUG ) Log.d( TAG, "onDestroy() found that ThermocoupleService was not bound" );
         }
+        onStopDisp.clear();  // because apparently onStop() isn't always called
         super.onDestroy( );
     }
     

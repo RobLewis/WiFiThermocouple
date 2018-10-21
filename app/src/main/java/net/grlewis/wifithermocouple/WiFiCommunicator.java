@@ -36,7 +36,6 @@ import static net.grlewis.wifithermocouple.Constants.RESET_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
 import static net.grlewis.wifithermocouple.Constants.TEMP_GET_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
-import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.WATCHDOG_CHECK_SECONDS;
 import static net.grlewis.wifithermocouple.Constants.WATCHDOG_ENABLE_UPPER_HALF;
 import static net.grlewis.wifithermocouple.Constants.WATCHDOG_FEED_UPPER_HALF;
@@ -57,12 +56,10 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     private UIStateModel uiStateModel;
     
-    //private Function<URL,UUID> httpUUIDSupplier;
-    //private Function<URL,UUID> jsonUUIDSupplier;
     private Function<URL,UUID> watchdogEnableUUIDSupplier;
     private Function<URL,UUID> watchdogFeedUUIDSupplier;
     private Function<URL,UUID> tempGetUUIDSupplier;
-    private Function<URL,UUID> tempUpdateUUIDSupplier;
+    //private Function<URL,UUID> tempUpdateUUIDSupplier;
     private Function<URL,UUID> fanControlUUIDSupplier;
     private Function<URL,UUID> watchdogStatusUUIDSupplier;
     private Function<URL,UUID> analogReadUUIDSupplier;
@@ -110,13 +107,13 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     WiFiCommunicator() {
         
         // providers of custom UUIDs for JSON and HTTP requests (passed the URL, which we ignore and return serialized UUIDs)
-        tempGetUUIDSupplier = new SerialUUIDSupplier( TEMP_GET_UPPER_HALF, "Temp Getter" );          // 0x3000
-        tempUpdateUUIDSupplier = new SerialUUIDSupplier( TEMP_UPDATE_UPPER_HALF, "Temp Updater" );       // 0x4000
+        tempGetUUIDSupplier = new SerialUUIDSupplier( TEMP_GET_UPPER_HALF, "Temp Getter" );                      // 0x3000
+        //tempUpdateUUIDSupplier = new SerialUUIDSupplier( TEMP_UPDATE_UPPER_HALF, "Temp Updater" );               // 0x4000
         watchdogStatusUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_STATUS_UPPER_HALF, "Watchdog Status Checker" );   // 0x6000
         watchdogEnableUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF, "Watchdog Enabler" );   // 0x1000
-        watchdogFeedUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF, "Watchdog Feeder" );     // 0x2000
-        analogReadUUIDSupplier = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF, "Analog Reader" );       // 0x7000
-        fanControlUUIDSupplier = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF, "Fan Controller" );       // 0x5000
+        watchdogFeedUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF, "Watchdog Feeder" );        // 0x2000
+        analogReadUUIDSupplier = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF, "Analog Reader" );              // 0x7000
+        fanControlUUIDSupplier = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF, "Fan Controller" );             // 0x5000
         
         //SystemClock.sleep( 2000L );  // FIXME: is it conceivable we have to wait for these constructors?
         
@@ -132,9 +129,9 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, watchdogEnableUUIDSupplier );
         watchdogDisabler = new AsyncHTTPRequester( DISABLE_WD_URL, client, watchdogEnableUUIDSupplier );  // same supplier
         watchdogFeeder = new AsyncHTTPRequester( RESET_WD_URL, client, watchdogFeedUUIDSupplier );
-        watchdogFeedObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )  // 40
-                .startWith( -1L )  // kick it off right away TODO: needed?
-                .flatMapSingle( resetNow -> watchdogFeeder.request( ) );
+//        watchdogFeedObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )  // 40
+//                .startWith( -1L )  // kick it off right away TODO: needed?
+//                .flatMapSingle( resetNow -> watchdogFeeder.request( ) );
         
         analogReader = new AsyncJSONGetter( READ_ANALOG_URL, client, analogReadUUIDSupplier );
         analogInUpdater = Observable.interval( ANALOG_IN_UPDATE_SECS, SECONDS )
@@ -144,12 +141,12 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         fanTurnoff = new AsyncHTTPRequester( FAN_OFF_URL, client, fanControlUUIDSupplier );
         
         // NEW: used by watchdogEnableObservable below
-        watchdogIntervalResetter = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )
-                .map( resetTime -> {
-                    watchdogFeeder.request().retry( 2L ).subscribe();
-                    if( DEBUG ) Log.d( TAG, "watchdog fed by watchdogIntervalResetter" );
-                    return resetTime;
-                } );  // Single
+//        watchdogIntervalResetter = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )
+//                .map( resetTime -> {
+//                    watchdogFeeder.request().retry( 2L ).subscribe();
+//                    if( DEBUG ) Log.d( TAG, "watchdog fed by watchdogIntervalResetter" );
+//                    return resetTime;
+//                } );  // Single
         
         // NEW: subscribe to enable the watchdog and start feeding, unsubscribe to disable
         // TODO: test; should replace other schemes

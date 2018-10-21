@@ -276,7 +276,7 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
         client = httpClient == null?            // and passed httpClient is also null
                 new OkHttpClient( ) :           // create a new default client; if passed httpClient is not null
                 httpClient;                     // use it
-        disposable = new Disposable() {
+        disposable = new Disposable() {  // TODO: eliminate (?)
             @Override
             public void dispose() {
                 if( !savedCall.isExecuted() ) savedCall.cancel();  // TODO: this seems to have fixed crash (but why is .dispose() getting called twice for some requests?
@@ -316,7 +316,7 @@ public class AsyncJSONGetter {  // updating from GlucometerApp version to use Rx
     
     // constructor that supplies a random request UUID if we don't
     public AsyncJSONGetter( URL jsonURL, OkHttpClient httpClient ) {
-        this( jsonURL, httpClient, /*UUID.randomUUID()*/ new UUID(0xcccc, 0xdddd ) );  // FIXME: remove if no UUID is supplied, generate one
+        this( jsonURL, httpClient, UUID.randomUUID() /*new UUID(0xcccc, 0xdddd )*/ );  // diagnostic UUID
     }
     
     /*

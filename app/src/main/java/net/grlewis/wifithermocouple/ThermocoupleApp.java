@@ -81,19 +81,13 @@ public class ThermocoupleApp extends Application {
         // do all your initialization in this instance method
         // (with instance members, not static)
         wifiCommunicator = new WiFiCommunicator();  // TODO: is this right?
-        appState = new ApplicationState();  // TODO: need?
+        appState = new ApplicationState();  // TODO: need? (maybe if we engage controller's internal DC etc.)
         pidState = new PIDState();
         bbqController = new BBQController();
-        //httpUUIDSupplier = new SerialUUIDSupplier( 0x1000 );  // call like: httpUUIDSupplier.iterator.next();
-        //jsonUUIDSupplier = new SerialUUIDSupplier( 0x2000 );
         
         onPauseDisposables = new CompositeDisposable(  );
         onStopDisposables = new CompositeDisposable(  );
         
-//        this probably doesn't work because the Service hasn''t been created yet'
-//        startServiceIntent = new Intent( this, ThermocoupleService.class );
-//        serviceComponentName = startService( startServiceIntent );
-    
     
     }
     
