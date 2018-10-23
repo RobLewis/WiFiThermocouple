@@ -1,5 +1,6 @@
 package net.grlewis.wifithermocouple;
 
+import android.app.Notification;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
@@ -63,7 +64,7 @@ public class ThermocoupleService extends Service {
     Disposable watchdogMaintainDisp;  // NEW: to enable, feed, and disable watchdog
     AsyncJSONGetter tempGetter;
     
-    
+    Notification runningNotification;
     
     CompositeDisposable serviceCompositeDisp;
     
@@ -105,11 +106,12 @@ public class ThermocoupleService extends Service {
         
         // if you want to keep the Service from being killed, must have an ongoing notification (Compat builder for API < 26)
         // the Notification doesn't seem to be working (there is one that the App is, so maybe that's it???)
-        startForeground( SERVICE_NOTIFICATION_ID, new NotificationCompat.Builder( getApplicationContext(), "Channel 1" )
+        runningNotification = new NotificationCompat.Builder( getApplicationContext(), "Channel 1" )
                 .setContentTitle( "PID Service Running" )
                 .setCategory( CATEGORY_SERVICE )
                 .setOngoing( true )
-                .build() );
+                .build();
+        startForeground( SERVICE_NOTIFICATION_ID, runningNotification );  // NEW need to cancel on destroy
         
         if( intent != null ) {  // this is an initial start, not a restart after killing
             
@@ -123,7 +125,7 @@ public class ThermocoupleService extends Service {
                     .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ) )
                     .doOnNext( temp -> {
                         while( timestampedHistory.remainingCapacity() < 1 ) timestampedHistory.poll();
-                        timestampedHistory.add( new Pair<>( new Date( ), temp ) );
+                        timestampedHistory.add( new Pair<>( new Date( ), temp ) );  // TODO: make it an ImmutableTriple with %DC?
                     })
                     .subscribe(
                             // TODO: add smoothing?
@@ -147,6 +149,7 @@ public class ThermocoupleService extends Service {
     public void onDestroy( ) {
         serviceCompositeDisp.clear();   //  kill all the subscriptions
         bbqController.stop();  // remove callbacks etc.
+        stopForeground( true );  // remove the Notification
         super.onDestroy( );
     }
     

@@ -67,7 +67,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     
     // NEW organization
     AsyncJSONGetter tempFGetter;               // Single that fetches a JSON tempF value
-    Observable<JSONObject> tempFUpdater;       // combines period values into an Observable
+    Observable<JSONObject> tempFUpdater;       // combines periodic values into an Observable
     AsyncJSONGetter watchdogStatusGetter;      // Single that fetches a JSON watchdog status report (enabled, expired)
     AsyncJSONGetter analogReader;              // Single that fetches a JSON report of control setting (0.0-1.0V)
     Observable<JSONObject> analogInUpdater;
@@ -161,7 +161,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         
     }
     
-
+    
     
     
     // method that returns a requester to turn the fan on or off
@@ -183,31 +183,6 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                         }
                 );
     }
-
-
-        
-/*
-//        tempHistoryBuffer = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
-//        timestampedHistory = new ArrayBlockingQueue<>( (60/TEMP_UPDATE_SECONDS) * HISTORY_MINUTES );  // should == 720
-        
-        // TODO: create Observable that you subscribe to to enable the watchdog, and dispose to disable. It never completes.
-        // (like RxBle .establishconnection())
-        // idea: this Observable emits (one) other Observable that you subscribe to to start periodic resets, unsubscribe to stop.
-        
-        Observable<Observable<Long>> watchDogMaintainObservable() {
-            
-            return Observable.never( )
-                    .startWith( watchdogIntervalResetter )
-                    .doOnSubscribe( disposable -> watchdogEnabler.request().subscribe( ) )
-                    .doOnDispose( () -> watchdogDisabler.request().subscribe( ) );
-            
-        }
-        
-        // The inner Observable just emits the interval sequence number on each reset
-        Observable<Long> watchdogIntervalResetter = Observable.interval( secs, SECONDS )
-                .map( resetTime -> { watchdogResetter.request().subscribe(); return resetTime; } );  // Single
-                
-*/
     
     
     
@@ -221,7 +196,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         } else {
             fanURL = FAN_OFF_URL;
         }
-        appInstance.appState.setFanState( fanState );
+        appInstance.pidState.setOutputOn( fanState );
         return new AsyncHTTPRequester( fanURL, eagerClient, fanControlUUIDSupplier )  // generate serialized UUIDs
                 .request()
                 .doOnError(

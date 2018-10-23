@@ -67,6 +67,8 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     // attempt at ViewModel to save temp history  TODO: dump? (all Rx)
     private UIStateModel uiStateModel;
     
+    // Created & used by onStart() in call to bindService()
+    Intent bindThermoServiceIntent; // can pass extra data to the Service if we need to
     ThermocoupleService thermoServiceRef;           // set when Service is bound
     ThermocoupleService.LocalBinder thermoBinder;   // part of binding operation, not used otherwise
     ComponentName serviceComponentName;             // returned by .startService(); just logged
@@ -83,8 +85,8 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         setSupportActionBar( toolbar );
         
         appInstance = ThermocoupleApp.getSoleInstance();
-        appInstance.setTestActivityRef( this );  // install a reference to this activity in main App TODO: need?
-        appInstance.bbqController.setTestActivityRef( this );  // TODO: need?
+        //appInstance.setTestActivityRef( this );  // install a reference to this activity in main App TODO: need?
+        //appInstance.bbqController.setTestActivityRef( this );  // TODO: need?
         
         // should be OK for now
         updateTempButton = (Button) findViewById( R.id.temp_button );
@@ -141,7 +143,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         
         // part of Service implementation (onStart() is a good place to bind Services)
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
-        if( !( serviceBound = bindService( bindThermoServiceIntent, /*ServiceConnection interface*/ this, Context.BIND_AUTO_CREATE ) ) ) // flag: create the service if it's bound
+        if( !( serviceBound = bindService( bindThermoServiceIntent, /*ServiceConnection*/ this, Context.BIND_AUTO_CREATE ) ) ) // flag: create the service if it's bound
             throw new RuntimeException( TAG + ": bindService() call in onStart() failed" );
         serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // bind to it AND start it
         if( DEBUG ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
@@ -277,6 +279,13 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         if( DEBUG ) Log.d( TAG, "Entering onStop()" );
         onStopDisp.clear();              // new composite for Service implementation
         super.onStop( );
+        if( serviceBound ) {  // try it here instead of onDestroy
+            getApplicationContext().unbindService( this );     // try to avoid leaking Service ('this' is ServiceConnection impl)
+            serviceBound = false;
+            thermoServiceRef = null;  // NEW
+        } else {
+            if( DEBUG ) Log.d( TAG, "onDestroy() found that ThermocoupleService was not bound" );
+        }
         if( DEBUG ) Log.d( TAG, "Exiting onStop()" );
     }
     
@@ -285,18 +294,11 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     
     @Override
     protected void onDestroy( ) {
-        if( serviceBound ) {
-            getApplicationContext().unbindService( this );;     // try to avoid leaking Service ('this' is ServiceConnection)
-        } else {
-            if( DEBUG ) Log.d( TAG, "onDestroy() found that ThermocoupleService was not bound" );
-        }
+        super.onDestroy( );  // FIXME: does putting this first fix the "can't destroy activity; service is not registered" crash? No.
         onStopDisp.clear();  // because apparently onStop() isn't always called
-        super.onDestroy( );
     }
     
-    /*---------------------------------SERVICE CONNECTION INTERFACE-----------------------------------*/
-    // Created & used by onStart() in call to bindService()
-    Intent bindThermoServiceIntent; // can pass extra data to the Service if we need to
+/*---------------------------------SERVICE CONNECTION INTERFACE-----------------------------------*/
     @Override
     // Here, the IBinder has a getService() method that returns a reference to the Service instance
     @SuppressWarnings( "static-access" )
@@ -314,7 +316,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
     public void onServiceDisconnected( ComponentName name ) {  // component name of the service whose connection has been lost.
         Log.d( TAG, "Finished onServiceDisconnected()" );
     }
-    /*------------------------------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------------------------*/
     
     
 }

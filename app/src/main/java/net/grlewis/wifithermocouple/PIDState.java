@@ -25,13 +25,13 @@ class PIDState implements Cloneable, Serializable {
         private Float propCoeff;
         private Float intCoeff;
         private Float diffCoeff;
-         Boolean intClamped;  // is the integrator term clamped?
+         Boolean intClamped;         // is the integrator term clamped?
         private Float currentPctg;   // last value of % on time for each period
         private Float intAccum;      // the accumulated integral term
         private Float periodSecs;    // seconds for loop repeat interval
-         Boolean enabled;     // is the PID enabled?
+         Boolean enabled;            // is the PID enabled?
         private Boolean reset;       // has it been reset?
-         Boolean outputOn;    // is the fan, heater, whatever currently on?
+         Boolean outputOn;           // is the fan, heater, whatever currently on?
         private Float minOutPct;     // the minimum controlled output percentage that will cause turnon
         
         private Float analogInVolts; // 0.0-1.0 (-1 means not set)

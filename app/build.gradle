@@ -37,8 +37,10 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:3.11.0'
     implementation 'com.squareup.okio:okio:1.15.0'
     implementation 'io.reactivex.rxjava2:rxjava:2.2.2'
-    implementation 'com.jakewharton.rxrelay2:rxrelay:2.0.0'       // Relay class
+    implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.0'       // Relay class
     implementation 'com.jakewharton.rx2:replaying-share:2.1.0'    // ReplayingShare
     implementation 'com.jakewharton.rxbinding2:rxbinding:2.2.0'   // RxBinding
     implementation "android.arch.lifecycle:extensions:$lifecycle_version" // includes ViewModel and LiveData
+
+    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.8.1' // for tuples like Triple
 }
