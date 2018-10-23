@@ -12,7 +12,7 @@ class BBQController implements PIDController {
     
     private final ThermocoupleApp appInstance;
     private final PIDState pidState;
-    private TestActivity testActivityRef;
+    private GraphActivity graphActivityRef;
     
     // PID parameters & variables are in pidState
     
@@ -36,15 +36,15 @@ class BBQController implements PIDController {
     BBQController( Handler newHandler ) {
         appInstance = ThermocoupleApp.getSoleInstance();
         pidState = appInstance.pidState;
-        testActivityRef = appInstance.testActivityRef;  // TODO: need?
+        graphActivityRef = appInstance.graphActivityRef;  // TODO: need?
         pidHandler = newHandler;
         pidLoopRunnable = new PIDLoopRunnable( );
         pidState.set( DEFAULT_SETPOINT );  // need some defined setpoint or won't start
     }
     
     
-    void setTestActivityRef( TestActivity testAct ) {
-        testActivityRef = testAct;
+    void setGraphActivityRef( GraphActivity testAct ) {
+        graphActivityRef = testAct;
     }
     
     // INTERFACE IMPLEMENTATION  \\
@@ -272,7 +272,7 @@ class BBQController implements PIDController {
             pidState.setIntClamped( (outputPercent > 100f || outputPercent < 0f) && ( (integralTerm * error) > 0f) );  // TODO: ?
             
             // probably don't want to manipulate UI here for Service version
-            //appInstance.testActivityRef.pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped()?
+            //appInstance.graphActivityRef.pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped()?
             //        "PID is enabled (clamped)" : "PID is enabled" );
             
             outputPercent = outputPercent < 0f? 0f : outputPercent;
@@ -285,13 +285,13 @@ class BBQController implements PIDController {
                     
                     pidHandler.post( () -> setOutputOn( true ) );
 //                    pidHandler.post( ( ) -> appInstance.wifiCommunicator.fanControlWithWarning( true ).subscribe(
-//                            //response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN ON" )
+//                            //response -> graphActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN ON" )
 //                            response -> pidState.setOutputOn( true )  // TODO: ?
 //                    ) );
                     if ( outputPercent < 100f ) { // schedule a turnoff if <100%
                         pidHandler.postDelayed( () -> setOutputOn( false ),
 //                        ( ) -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
-//                                        //response -> testActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
+//                                        //response -> graphActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
 //                                        response -> pidState.setOutputOn( false )  // TODO: ?
                                 (long) ( getPeriodMs( ) * outputPercent / 100f) );  // delay time // TODO: ?
                     }

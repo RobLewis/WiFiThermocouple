@@ -36,9 +36,9 @@ import io.reactivex.disposables.Disposable;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
-public class TestActivity extends AppCompatActivity implements ServiceConnection {
+public class GraphActivity extends AppCompatActivity implements ServiceConnection {
     
-    static final String TAG = TestActivity.class.getSimpleName();
+    static final String TAG = GraphActivity.class.getSimpleName();
     
     ThermocoupleApp appInstance;                          // set in onCreate()
     
@@ -85,8 +85,8 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
         setSupportActionBar( toolbar );
         
         appInstance = ThermocoupleApp.getSoleInstance();
-        //appInstance.setTestActivityRef( this );  // install a reference to this activity in main App TODO: need?
-        //appInstance.bbqController.setTestActivityRef( this );  // TODO: need?
+        //appInstance.setGraphActivityRef( this );  // install a reference to this activity in main App TODO: need?
+        //appInstance.bbqController.setGraphActivityRef( this );  // TODO: need?
         
         // should be OK for now
         updateTempButton = (Button) findViewById( R.id.temp_button );
@@ -175,7 +175,7 @@ public class TestActivity extends AppCompatActivity implements ServiceConnection
                             toggleFanButton.setText( "FAN IS INITIALLY OFF" );
                         },
                         httpError -> {
-                            Toast.makeText( TestActivity.this, "Fan shutoff in onStart() failed after retries"
+                            Toast.makeText( GraphActivity.this, "Fan shutoff in onStart() failed after retries"
                                     + httpError.getMessage(), Toast.LENGTH_LONG ).show();
                             toggleFanButton.setText( "Error turning fan off in onStart()" );
                         } );

@@ -1,6 +1,5 @@
 package net.grlewis.wifithermocouple;
 
-import android.app.Activity;
 import android.app.Application;
 import android.content.ComponentName;
 import android.content.Intent;
@@ -50,7 +49,7 @@ public class ThermocoupleApp extends Application {
     BBQController bbqController;
     ComponentName serviceComponentName;
     
-    TestActivity testActivityRef;
+    GraphActivity graphActivityRef;
     
     SerialUUIDSupplier httpUUIDSupplier;
     SerialUUIDSupplier jsonUUIDSupplier;
@@ -92,7 +91,7 @@ public class ThermocoupleApp extends Application {
     }
     
     
-    void setTestActivityRef( TestActivity testActivity ) { testActivityRef = testActivity; }
+    void setGraphActivityRef( GraphActivity graphActivity ) { graphActivityRef = graphActivity; }
     
 /*
     @Override

@@ -117,7 +117,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         
         //SystemClock.sleep( 2000L );  // FIXME: is it conceivable we have to wait for these constructors?
         
-        // TestActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
+        // GraphActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
         tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, tempGetUUIDSupplier );
         tempFUpdater = Observable.interval( TEMP_UPDATE_SECONDS, SECONDS )  // currently 5 seconds
                 .flatMapSingle( getTempFNow -> tempFGetter.get( ) );  // combines outputs of Singles into an Observable stream
