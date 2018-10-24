@@ -12,6 +12,8 @@ import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.util.Pair;
 
+import com.jakewharton.rxrelay2.BehaviorRelay;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -76,6 +78,7 @@ public class ThermocoupleService extends Service {
     BBQController bbqController;  // TODO: should this be here?
     
     private ArrayBlockingQueue<Pair<Date, Float>> timestampedHistory;
+    BehaviorRelay<ArrayBlockingQueue<Pair<Date, Float>>> tempHistRelay;
     
     
     
@@ -96,6 +99,7 @@ public class ThermocoupleService extends Service {
         bbqController = new BBQController( pidHandler );  // bbqController.pidLoopRunnable should be created
         
         timestampedHistory = new ArrayBlockingQueue<>( HISTORY_BUFFER_SIZE );  // 720
+        tempHistRelay = BehaviorRelay.create();
     
     }
     
@@ -120,12 +124,13 @@ public class ThermocoupleService extends Service {
             if( watchdogMaintainDisp != null ) serviceCompositeDisp.add( watchdogMaintainDisp );
             
             // now start temperature updates
-            tempUpdateDisp = appInstance.wifiCommunicator.tempFUpdater
+            tempUpdateDisp = appInstance.wifiCommunicator.tempFUpdater  // emits JSON temp every 5 seconds
                     .retry( 3L)
                     .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ) )
                     .doOnNext( temp -> {
                         while( timestampedHistory.remainingCapacity() < 1 ) timestampedHistory.poll();
                         timestampedHistory.add( new Pair<>( new Date( ), temp ) );  // TODO: make it an ImmutableTriple with %DC?
+                        tempHistRelay.accept( timestampedHistory );  // relay the new history to UI or anyone listening
                     })
                     .subscribe(
                             // TODO: add smoothing?

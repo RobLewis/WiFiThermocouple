@@ -36,6 +36,11 @@ import io.reactivex.disposables.Disposable;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
+import com.androidplot.util.PixelUtils;
+import com.androidplot.xy.SimpleXYSeries;
+import com.androidplot.xy.XYSeries;
+import com.androidplot.xy.*;
+
 public class GraphActivity extends AppCompatActivity implements ServiceConnection {
     
     static final String TAG = GraphActivity.class.getSimpleName();
@@ -60,6 +65,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     Disposable tempUpdateDisp;
     Disposable tempSliderDisp;
     Disposable pidParameterChangesDisp;   // Service impl
+    Disposable graphDataUpdateDisp;       // relay of graphing data
     
     CompositeDisposable onPauseDisp;
     CompositeDisposable onStopDisp;
@@ -73,6 +79,9 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     ThermocoupleService.LocalBinder thermoBinder;   // part of binding operation, not used otherwise
     ComponentName serviceComponentName;             // returned by .startService(); just logged
     boolean serviceBound;                           // did service binding succeed?
+    
+    private XYPlot tempHistoryPlot;
+    private TempPlotSeries tempPlotSeries;          // implements XYSeries
     
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
@@ -103,6 +112,12 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         
         onPauseDisp = new CompositeDisposable( );
         onStopDisp  = new CompositeDisposable( );
+        
+        
+        // NEW: initialize our XYPlot reference:
+        tempHistoryPlot = (XYPlot) findViewById(R.id.temp_history);  // "cast is redundant"?
+        tempPlotSeries = new TempPlotSeries();
+        
         
         uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );  // TODO: dump?
         
@@ -148,6 +163,8 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // bind to it AND start it
         if( DEBUG ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
         
+        
+        // This updates the UI except for the (NEW) temp history graph and perhaps other stuff
         pidParameterChangesDisp = appInstance.pidState.pidStatePublisher
                 .observeOn( AndroidSchedulers.mainThread() )  // don't forget!
                 .subscribe(  // receive updated parameters & redraw UI
@@ -219,7 +236,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                         },
                         pidToggleErr -> {
                             Log.d( TAG, "Error with pidToggleObservable: "
-                                + pidToggleErr.getMessage(), pidToggleErr );
+                                    + pidToggleErr.getMessage(), pidToggleErr );
                         }
                 );
         onPauseDisp.add( pidToggleDisp );
@@ -261,6 +278,15 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                 );
         onPauseDisp.add( tempSliderDisp );
         
+        // subscribe to updates in temp history for graphing
+        graphDataUpdateDisp = thermoServiceRef.tempHistRelay.subscribe(
+                newTempHistory -> {
+                    tempPlotSeries.updatePlotData( newTempHistory );
+                    // TODO: redraw the graph
+                }
+        
+        );
+        
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
     }  // onResume
     
@@ -298,7 +324,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         onStopDisp.clear();  // because apparently onStop() isn't always called
     }
     
-/*---------------------------------SERVICE CONNECTION INTERFACE-----------------------------------*/
+    /*---------------------------------SERVICE CONNECTION INTERFACE-----------------------------------*/
     @Override
     // Here, the IBinder has a getService() method that returns a reference to the Service instance
     @SuppressWarnings( "static-access" )
@@ -316,7 +342,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     public void onServiceDisconnected( ComponentName name ) {  // component name of the service whose connection has been lost.
         Log.d( TAG, "Finished onServiceDisconnected()" );
     }
-/*------------------------------------------------------------------------------------------------*/
+    /*------------------------------------------------------------------------------------------------*/
     
     
 }

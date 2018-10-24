@@ -43,4 +43,5 @@ dependencies {
     implementation "android.arch.lifecycle:extensions:$lifecycle_version" // includes ViewModel and LiveData
 
     implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.8.1' // for tuples like Triple
+    implementation "com.androidplot:androidplot-core:1.5.6"
 }

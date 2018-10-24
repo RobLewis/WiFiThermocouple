@@ -10,6 +10,24 @@
     <!-- padding is inside the border, margin is outside -->
 
     <!-- Button is a subclass of TextView -->
+
+    <com.androidplot.xy.XYPlot
+        android:id="@+id/temp_history"
+        style="@style/APDefacto.Dark"
+        androidPlot.domainTitle="min"
+        androidPlot.lineLabelRotationBottom="-45"
+        androidPlot.lineLabels="left|bottom"
+        androidPlot.rangeTitle="°F"
+        androidPlot.title="Temp History"
+        android:layout_width="0dp"
+        android:layout_height="300dp"
+        app:layout_constraintBottom_toTopOf="@id/temp_button"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:layout_margin="36dp" />
+
+
     <Button
         android:id="@+id/temp_button"
         android:layout_width="0dp"
@@ -20,7 +38,7 @@
         app:layout_constraintBottom_toTopOf="@id/fan_button"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/temp_history"
         tools:layout_margin="36dp"
         tools:padding="20dp" />
 
