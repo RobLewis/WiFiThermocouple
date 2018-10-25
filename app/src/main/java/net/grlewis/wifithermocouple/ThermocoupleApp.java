@@ -48,7 +48,7 @@ public class ThermocoupleApp extends Application {
     PIDState pidState;
     BBQController bbqController;
     ComponentName serviceComponentName;
-    
+    ThermocoupleService thermocoupleService;
     GraphActivity graphActivityRef;
     
     SerialUUIDSupplier httpUUIDSupplier;
@@ -57,7 +57,7 @@ public class ThermocoupleApp extends Application {
     CompositeDisposable onPauseDisposables;
     CompositeDisposable onStopDisposables;
     
-    Intent startServiceIntent;
+    Intent startThermoServiceIntent;
     
     
     
@@ -79,6 +79,16 @@ public class ThermocoupleApp extends Application {
     protected void initialize() {
         // do all your initialization in this instance method
         // (with instance members, not static)
+        if( DEBUG ) Log.d( TAG, "App initialize() entered");
+    
+        startThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
+        // Note: startForegroundService() requires API 26
+        serviceComponentName = getApplicationContext().startService( startThermoServiceIntent );  // bind to it AND start it
+        if( DEBUG ) {  // seems to never fail to start
+            if( serviceComponentName != null ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
+            else throw new NullPointerException( "Attempt to start Service failed" );
+        }
+        
         wifiCommunicator = new WiFiCommunicator();  // TODO: is this right?
         appState = new ApplicationState();  // TODO: need? (maybe if we engage controller's internal DC etc.)
         pidState = new PIDState();
@@ -86,12 +96,18 @@ public class ThermocoupleApp extends Application {
         
         onPauseDisposables = new CompositeDisposable(  );
         onStopDisposables = new CompositeDisposable(  );
+    
         
+    
+        if( DEBUG ) Log.d( TAG, "App initialize() exited");
     
     }
     
     
+    
     void setGraphActivityRef( GraphActivity graphActivity ) { graphActivityRef = graphActivity; }
+    
+    void setServiceRef( ThermocoupleService serviceRef ) { thermocoupleService = serviceRef; }  // FIXME: desperation
     
 /*
     @Override

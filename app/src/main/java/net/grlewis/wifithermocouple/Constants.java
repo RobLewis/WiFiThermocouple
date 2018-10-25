@@ -21,7 +21,7 @@ final class Constants {
     
     static final String TAG = Constants.class.getSimpleName();
     
-    static boolean DEBUG = true;
+    final static boolean DEBUG = true;
     
     // URLs to control the device
     

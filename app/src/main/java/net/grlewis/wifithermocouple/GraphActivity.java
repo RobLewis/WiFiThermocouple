@@ -147,6 +147,27 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
             }
         } );
         
+        
+        // Moved to ThermocoupleApp
+        /*bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
+        // Note: startForegroundService() requires API 26
+        serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // bind to it AND start it
+        if( DEBUG ) {  // seems to never fail to start
+            if( serviceComponentName != null ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
+            else throw new NullPointerException( "Attempt to start Service failed" );
+        }*/
+        
+        bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );  // FIXME: this also doesn't work for context
+        serviceBound = bindService( bindThermoServiceIntent, this, Context.BIND_AUTO_CREATE );
+        if( DEBUG ) {
+            if( serviceBound ) {
+                Log.d( TAG, "bindService() reports that ThermocoupleService is bound");  // always reports bound
+            } else {
+                Log.d( TAG, "bindService() reports that ThermocoupleService is NOT bound");
+            }
+        }
+        
+        
         if( DEBUG ) Log.d( TAG, "Exiting onCreate()" );
     }  // onCreate
     
@@ -159,11 +180,16 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         super.onStart( );
         
         // part of Service implementation (onStart() is a good place to bind Services)
+/*  try moving to onCreate()
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
-        if( !( serviceBound = bindService( bindThermoServiceIntent, /*ServiceConnection*/ this, Context.BIND_AUTO_CREATE ) ) ) // flag: create the service if it's bound
+        if( !( serviceBound = bindService( bindThermoServiceIntent, */
+        /*ServiceConnection*//*
+ this, Context.BIND_AUTO_CREATE ) ) ) // flag: create the service if it's bound
             throw new RuntimeException( TAG + ": bindService() call in onStart() failed" );
+        // Note: startForegroundService requires API 26
         serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // bind to it AND start it
         if( DEBUG ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
+*/
         
         
         // This updates the UI except for the (NEW) temp history graph and perhaps other stuff
@@ -281,7 +307,11 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         onPauseDisp.add( tempSliderDisp );
         
         // subscribe to updates in temp history for graphing
-        graphDataUpdateDisp = thermoServiceRef.tempHistRelay.subscribe(
+        
+//        if( thermoServiceRef == null ) throw new NullPointerException( "thermoServiceRef returns null" );  // FIXME: returning null
+//        if( thermoServiceRef.tempHistRelay == null ) throw new NullPointerException( "tempHistRelay returns null" );
+        
+        graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(
                 newTempHistory -> {
                     tempPlotSeries.updatePlotData( newTempHistory );  // with sync
                     // TODO: redraw the graph
@@ -325,6 +355,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     @Override
     protected void onDestroy( ) {
         super.onDestroy( );  // FIXME: does putting this first fix the "can't destroy activity; service is not registered" crash? No.
+        if( DEBUG ) Log.d( TAG, "onDestroy() entered");
         onStopDisp.clear();  // because apparently onStop() isn't always called
     }
     
@@ -332,12 +363,12 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     @Override
     // Here, the IBinder has a getService() method that returns a reference to the Service instance
     @SuppressWarnings( "static-access" )
-    public void onServiceConnected( ComponentName className, IBinder service ) {
+    public void onServiceConnected( ComponentName className, IBinder service ) {  // service is an IBinder (interface implemented by Binder)
         Log.d( TAG, "Entering onServiceConnected()" );
         // We've bound to Service, cast the IBinder and get Service instance
-        thermoBinder = (ThermocoupleService.LocalBinder) service;
+        thermoBinder = (ThermocoupleService.LocalBinder) service;                 // FIXME:
         // (casting it makes compiler aware of existence of getService() method)
-        thermoServiceRef = thermoBinder.getService();
+        thermoServiceRef = thermoBinder.getService();                             // FIXME: null
         if( thermoServiceRef == null ) throw new RuntimeException( TAG
                 + ": onServiceConnected returned null from getService()" );
         Log.d( TAG, "Finished onServiceConnected()" );

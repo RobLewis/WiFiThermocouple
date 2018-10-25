@@ -60,11 +60,8 @@ public class ThermocoupleService extends Service {
     ThermocoupleApp appInstance;
     
     
-    Disposable watchdogEnableDisp;
-    Disposable watchdogFeedingDisp;
     Disposable tempUpdateDisp;
     Disposable watchdogMaintainDisp;  // NEW: to enable, feed, and disable watchdog
-    AsyncJSONGetter tempGetter;
     
     Notification runningNotification;
     
@@ -75,17 +72,41 @@ public class ThermocoupleService extends Service {
     Looper pidLooper;
     Handler pidHandler;
     
-    BBQController bbqController;  // TODO: should this be here?
-    
     private ArrayBlockingQueue<Pair<Date, Float>> timestampedHistory;
     BehaviorRelay<ArrayBlockingQueue<Pair<Date, Float>>> tempHistRelay;
+    
+    private IBinder thermoBinder;
+    
+    
+    /*------------------------------- START OF SERVICE BINDING STUFF ---------------------------------*/
+    // Binder given to clients for service--returns this instance of the Service class
+    class LocalBinder extends Binder {
+        ThermocoupleService getService() {
+            Log.d( TAG, "Entering thermoBinder.getService()" );
+            // return this instance of the Service so Clients can call public methods
+            // (note you can call static methods with an instance identifier)
+            return ThermocoupleService.this; // include class name; otherwise "this" == LocalBinder
+        }
+    }
+    
+    @Override // Service must implement this & return an IBinder
+    public IBinder onBind( Intent intent ) {
+        Log.d( TAG, "Entering onBind()" );
+        // Here can fetch "Extra" info sent with the Intent
+        return thermoBinder; // client can call the returned instance with .getService
+    }
+    /*-------------------------------- END OF SERVICE BINDING STUFF ----------------------------------*/
+    
+    
     
     
     
     @Override
     public void onCreate( ) {
         super.onCreate( );
-        
+    
+        if( DEBUG ) Log.d( TAG, "entering onCreate()");
+    
         appInstance = ThermocoupleApp.getSoleInstance();
         
         serviceCompositeDisp = new CompositeDisposable(  );  // TODO; does this fix NPE?
@@ -96,10 +117,17 @@ public class ThermocoupleService extends Service {
         pidLooper = pidHandlerThread.getLooper();
         pidHandler = new Handler( pidLooper );
         //pidHandler = Handler.createAsync( pidLooper );  // API 28 (no VBL sync)
-        bbqController = new BBQController( pidHandler );  // bbqController.pidLoopRunnable should be created
+        appInstance.bbqController = new BBQController( pidHandler );  // bbqController.pidLoopRunnable should be created
         
         timestampedHistory = new ArrayBlockingQueue<>( HISTORY_BUFFER_SIZE );  // 720
         tempHistRelay = BehaviorRelay.create();
+    
+        thermoBinder = new LocalBinder();
+        
+        appInstance.setServiceRef( this );  // FIXME?: desperation when binding wont work
+        
+        if( DEBUG ) Log.d( TAG, "exiting onCreate()");
+    
     
     }
     
@@ -107,6 +135,10 @@ public class ThermocoupleService extends Service {
     // called by Android every time a client calls Context.startService( Intent )
     // called with a null Intent if being restarted after killed (shouldn't happen)
     public int onStartCommand( Intent intent, int flags, int startId ) {  // Intent contains calling context and name of this class
+    
+        super.onStartCommand( intent, flags, startId );  // TODO: try putting this first, not last--no change
+    
+        if( DEBUG ) Log.d( TAG, "onStartCommand() entered");  // never prints
         
         // if you want to keep the Service from being killed, must have an ongoing notification (Compat builder for API < 26)
         // the Notification doesn't seem to be working (there is one that the App is, so maybe that's it???)
@@ -140,45 +172,24 @@ public class ThermocoupleService extends Service {
             serviceCompositeDisp.add( tempUpdateDisp );
             
             // start the BBQ Controller loop (we think it's fixed to not change UI and run all the time)
-            pidHandler.postDelayed( bbqController.pidLoopRunnable, 2000L );  // give it a couple seconds
+            pidHandler.postDelayed( appInstance.bbqController.pidLoopRunnable, 2000L );  // give it a couple seconds
             
         } else {  // this is a restart
         
         }
         
-        super.onStartCommand( intent, flags, startId );
         return START_STICKY;  // keep it running
     }
     
     @Override
     public void onDestroy( ) {
         serviceCompositeDisp.clear();   //  kill all the subscriptions
-        bbqController.stop();  // remove callbacks etc.
+        appInstance.bbqController.stop();  // remove callbacks etc.
         stopForeground( true );  // remove the Notification
         super.onDestroy( );
     }
     
-/*------------------------------- START OF SERVICE BINDING STUFF ---------------------------------*/
-    // Binder given to clients for service--returns this instance of the Service class
-    private final IBinder thermoBinder = new LocalBinder();
-    // Class for binding Service
-    public class LocalBinder extends Binder {
-        ThermocoupleService getService() {
-            Log.d( TAG, "Entering thermoBinder.getService()" );
-            // return this instance of the Service so Clients can call public methods
-            // (note you can call static methods with an instance identifier)
-            return ThermocoupleService.this; // include class name; otherwise "this" == LocalBinder
-        }
-    }
-    @Override // Service must implement this & return an IBinder
-    public IBinder onBind( Intent intent ) {
-        Log.d( TAG, "Entering onBind()" );
-        // Here can fetch "Extra" info sent with the Intent
-        return thermoBinder; // client can call the returned instance with .getService
-    }
-/*-------------------------------- END OF SERVICE BINDING STUFF ----------------------------------*/
-    
-    
+
     
     // do we need this?
     class tempUpdateEmitter implements SingleEmitter<JSONObject> {
