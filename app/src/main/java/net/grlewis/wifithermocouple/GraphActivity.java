@@ -21,6 +21,7 @@ import android.widget.SeekBar;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import com.androidplot.Plot;
 import com.jakewharton.rxbinding2.InitialValueObservable;
 import com.jakewharton.rxbinding2.view.RxView;
 import com.jakewharton.rxbinding2.widget.RxCompoundButton;
@@ -36,9 +37,6 @@ import io.reactivex.disposables.Disposable;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
-import com.androidplot.util.PixelUtils;
-import com.androidplot.xy.SimpleXYSeries;
-import com.androidplot.xy.XYSeries;
 import com.androidplot.xy.*;
 
 public class GraphActivity extends AppCompatActivity implements ServiceConnection {
@@ -82,6 +80,8 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     
     private XYPlot tempHistoryPlot;
     private TempPlotSeries tempPlotSeries;          // implements XYSeries
+    LineAndPointFormatter tempGraphFormatter;
+    XYGraphWidget tempGraphWidget;
     
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
@@ -89,13 +89,11 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         if( DEBUG ) Log.d( TAG, "Entering onCreate()" );
         
         super.onCreate( savedInstanceState );
-        setContentView( R.layout.activity_test );
+        setContentView( R.layout.activity_graph );
         Toolbar toolbar = (Toolbar) findViewById( R.id.toolbar );  // TODO: use?
         setSupportActionBar( toolbar );
         
         appInstance = ThermocoupleApp.getSoleInstance();
-        //appInstance.setGraphActivityRef( this );  // install a reference to this activity in main App TODO: need?
-        //appInstance.bbqController.setGraphActivityRef( this );  // TODO: need?
         
         // should be OK for now
         updateTempButton = (Button) findViewById( R.id.temp_button );
@@ -114,9 +112,13 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         onStopDisp  = new CompositeDisposable( );
         
         
-        // NEW: initialize our XYPlot reference:
+        // NEW: initialize our XYPlot reference & components:
         tempHistoryPlot = (XYPlot) findViewById(R.id.temp_history);  // "cast is redundant"?
         tempPlotSeries = new TempPlotSeries();
+        tempHistoryPlot.setRenderMode( Plot.RenderMode.USE_BACKGROUND_THREAD );
+        tempGraphFormatter = new LineAndPointFormatter(this, R.xml.line_point_formatter_with_labels);
+        tempHistoryPlot.addSeries(tempPlotSeries, tempGraphFormatter);
+        tempGraphWidget = tempHistoryPlot.getGraph();
         
         
         uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );  // TODO: dump?
@@ -281,11 +283,13 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         // subscribe to updates in temp history for graphing
         graphDataUpdateDisp = thermoServiceRef.tempHistRelay.subscribe(
                 newTempHistory -> {
-                    tempPlotSeries.updatePlotData( newTempHistory );
+                    tempPlotSeries.updatePlotData( newTempHistory );  // with sync
                     // TODO: redraw the graph
+                    tempHistoryPlot.redraw();
                 }
-        
         );
+        onPauseDisp.add( graphDataUpdateDisp );
+        
         
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
     }  // onResume

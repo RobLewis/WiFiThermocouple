@@ -14,18 +14,18 @@
     <com.androidplot.xy.XYPlot
         android:id="@+id/temp_history"
         style="@style/APDefacto.Dark"
-        androidPlot.domainTitle="min"
-        androidPlot.lineLabelRotationBottom="-45"
-        androidPlot.lineLabels="left|bottom"
-        androidPlot.rangeTitle="°F"
-        androidPlot.title="Temp History"
         android:layout_width="0dp"
         android:layout_height="300dp"
         app:layout_constraintBottom_toTopOf="@id/temp_button"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        tools:layout_margin="36dp" />
+        tools:layout_margin="36dp"
+        androidPlot.title="Temp History"
+        androidPlot.domainTitle="min"
+        androidPlot.lineLabelRotationBottom="-45"
+        androidPlot.lineLabels="left|bottom"
+        androidPlot.rangeTitle="°F" />
 
 
     <Button

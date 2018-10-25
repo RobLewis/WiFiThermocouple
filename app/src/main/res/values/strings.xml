@@ -75,5 +75,9 @@
     <string name="pref_ringtone_silent">Silent</string>
 
     <string name="pref_title_vibrate">Vibrate</string>
+
+    <!-- Settings for App -->
     <string name="title_activity_test">Test Activity</string>
+    <string name="title_activity_graph">Graph Activity</string>
+
 </resources>
