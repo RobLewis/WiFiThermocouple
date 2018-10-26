@@ -8,10 +8,10 @@ import android.util.Log;
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
 /*
-*
-* Desperation move trying to get the ThermocoupleService to start and bind
-*
-*/
+ *
+ * Desperation move trying to get the ThermocoupleService to start and bind
+ *
+ */
 
 class ThermocoupleServiceConnection implements ServiceConnection {
     
@@ -27,7 +27,8 @@ class ThermocoupleServiceConnection implements ServiceConnection {
     
     @Override
     public void onServiceConnected( ComponentName name, IBinder service ) {
-        if( DEBUG ) Log.d( TAG, "onServiceConnected() called for component " + name.toShortString() );
+        if( DEBUG ) Log.d( TAG, "onServiceConnected() called for component " + name.toShortString()
+                + " with Binder " + service.toString() );
         scBinder = (ThermocoupleService.LocalBinder) service;
         thermocoupleService = scBinder.getService();
     }

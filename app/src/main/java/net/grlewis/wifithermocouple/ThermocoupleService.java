@@ -167,7 +167,7 @@ public class ThermocoupleService extends Service {
         startForeground( SERVICE_NOTIFICATION_ID, runningNotification );  // NEW need to cancel on destroy
         if( DEBUG ) Log.d( TAG, "returned from startForeground()");
         
-        if( intent != null ) {  // this is an initial start, not a restart after killing
+        if( intent != null ) {  // this is an initial start, not a restart after killing  // FIXME: removing this if doesn't change crash
             
             // NEW: try the new combined "maintain" for the watchdog to enable, feed, and eventually disable
             watchdogMaintainDisp = appInstance.wifiCommunicator.watchDogMaintainObservable.subscribe();

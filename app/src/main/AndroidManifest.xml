@@ -22,6 +22,7 @@
             android:name=".ThermocoupleService"
             android:enabled="true"
             android:exported="false"
+            android:label="Thermocouple Service"
             android:description="@string/service_description" >
         </service>
 
@@ -47,8 +48,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-
 
     </application>
 

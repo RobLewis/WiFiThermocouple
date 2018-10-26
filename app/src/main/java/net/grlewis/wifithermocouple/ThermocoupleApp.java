@@ -64,7 +64,6 @@ public class ThermocoupleApp extends Application {
         if( DEBUG ) {  // seems to never fail to start
             if( serviceComponentName != null ) {  // ComponentName doesn't contain any real info
                 Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString( ) );  // looks OK
-                
             }else throw new NullPointerException( "Attempt to start Service failed" );
         }
         
@@ -73,7 +72,7 @@ public class ThermocoupleApp extends Application {
         pidState = new PIDState();
         bbqController = new BBQController();
     
-        SystemClock.sleep( 2000L );  // TODO: desperation (didn't help)
+        //SystemClock.sleep( 2000L );  // TODO: desperation (didn't help)
         
         if( DEBUG ) Log.d( TAG, "App initialize() exited");
     }

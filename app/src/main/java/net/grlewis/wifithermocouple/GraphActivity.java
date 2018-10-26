@@ -79,6 +79,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     boolean serviceBound;                           // did service binding succeed?
     
     ThermocoupleServiceConnection thermocoupleServiceConnection;  // NEW
+    ThermocoupleService thermocoupleServiceRef;
     
     private XYPlot tempHistoryPlot;
     private TempPlotSeries tempPlotSeries;          // implements XYSeries
@@ -122,7 +123,6 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         tempHistoryPlot.addSeries(tempPlotSeries, tempGraphFormatter);
         tempGraphWidget = tempHistoryPlot.getGraph();
         
-        ThermocoupleService thermocoupleServiceRef;
         
         
         uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );  // TODO: dump?
@@ -157,7 +157,6 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         thermocoupleServiceConnection = new ThermocoupleServiceConnection();  // NEW
         
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );  // FIXME: this also doesn't work for context
-        //serviceBound = bindService( bindThermoServiceIntent, this, Context.BIND_AUTO_CREATE );
         serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_AUTO_CREATE );  // NEW ServiceConnection impl
         if( DEBUG ) {
             if( serviceBound ) {
