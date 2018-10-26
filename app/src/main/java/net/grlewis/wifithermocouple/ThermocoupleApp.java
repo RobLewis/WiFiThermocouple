@@ -3,6 +3,7 @@ package net.grlewis.wifithermocouple;
 import android.app.Application;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.os.SystemClock;
 import android.util.Log;
 
 import io.reactivex.disposables.CompositeDisposable;
@@ -11,29 +12,11 @@ import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
 
 /*
-*
-* should be possible to access from an Activity with something like
-*   ThermocoupleApp appInstance = (ThermocoupleApp)getApplication().getSoleInstance();
-*
-*
-* Communication scheme
-*
-*   This app has a temperature polling Observable built on Observable.interval() with, say, a 5-second period
-*   The app subscribes to it to start polling and disposes to stop it.
-*   At each polling time, use AsyncHTTPRequester to request the temperature (by .request().subscribe()
-*     The Subscriber's .onSuccess( JSONObject ) handles the returned temperature.
-*
-*
-*   A second Observable.interval() with perhaps a 40-second interval handles the watchdog timer (200 sec timeout)
-*   For safety, we want the watchdog timer always enabled (shut down fan & warn if it ever elapses)
-*   At each polling time, use AsyncHTTPRequester
-*     Request watchdog status with Single timeout of, say, 10 seconds: .timeout( long, TimeUnit )
-*       If we request a TimeoutException error or WatchdogAlarm || !WatchdogEnabled, shut down and alarm
-*
-*   2018-10: updated firmware to 0.7 to try to work around "nan" temp readings
-*
-*
-* */
+ *
+ *   2018-10: updated firmware to 0.7 to try to work around "nan" temp readings
+ *
+ *
+ * */
 
 
 public class ThermocoupleApp extends Application {
@@ -51,12 +34,6 @@ public class ThermocoupleApp extends Application {
     ThermocoupleService thermocoupleService;
     GraphActivity graphActivityRef;
     
-    SerialUUIDSupplier httpUUIDSupplier;
-    SerialUUIDSupplier jsonUUIDSupplier;
-    
-    CompositeDisposable onPauseDisposables;
-    CompositeDisposable onStopDisposables;
-    
     Intent startThermoServiceIntent;
     
     
@@ -72,7 +49,7 @@ public class ThermocoupleApp extends Application {
         super.onCreate( );
         sAppInstance = this;  // the created App instance stores a reference to itself in the static variable
         sAppInstance.initialize();
-    
+        
         if( DEBUG ) Log.d( TAG, "Exiting onCreate()");
     }
     
@@ -80,27 +57,25 @@ public class ThermocoupleApp extends Application {
         // do all your initialization in this instance method
         // (with instance members, not static)
         if( DEBUG ) Log.d( TAG, "App initialize() entered");
-    
+        
         startThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
         // Note: startForegroundService() requires API 26
         serviceComponentName = getApplicationContext().startService( startThermoServiceIntent );  // bind to it AND start it
         if( DEBUG ) {  // seems to never fail to start
-            if( serviceComponentName != null ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
-            else throw new NullPointerException( "Attempt to start Service failed" );
+            if( serviceComponentName != null ) {  // ComponentName doesn't contain any real info
+                Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString( ) );  // looks OK
+                
+            }else throw new NullPointerException( "Attempt to start Service failed" );
         }
         
         wifiCommunicator = new WiFiCommunicator();  // TODO: is this right?
         appState = new ApplicationState();  // TODO: need? (maybe if we engage controller's internal DC etc.)
         pidState = new PIDState();
         bbqController = new BBQController();
-        
-        onPauseDisposables = new CompositeDisposable(  );
-        onStopDisposables = new CompositeDisposable(  );
     
+        SystemClock.sleep( 2000L );  // TODO: desperation (didn't help)
         
-    
         if( DEBUG ) Log.d( TAG, "App initialize() exited");
-    
     }
     
     

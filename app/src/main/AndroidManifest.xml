@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />  <!-- needed for Build.VERSION_CODES.P or later -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />           <!-- could lack of this be why Service won't run? -->
 
     <application
         android:name=".ThermocoupleApp"
@@ -16,6 +17,13 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+
+        <service
+            android:name=".ThermocoupleService"
+            android:enabled="true"
+            android:exported="false"
+            android:description="@string/service_description" >
+        </service>
 
         <activity
             android:name=".DashboardActivity"
@@ -40,12 +48,7 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".ThermocoupleService"
-            android:enabled="true"
-            android:exported="false"
-            android:description="@string/service_description" >
-        </service>
+
 
     </application>
 

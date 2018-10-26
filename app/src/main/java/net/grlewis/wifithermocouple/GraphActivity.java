@@ -78,6 +78,8 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     ComponentName serviceComponentName;             // returned by .startService(); just logged
     boolean serviceBound;                           // did service binding succeed?
     
+    ThermocoupleServiceConnection thermocoupleServiceConnection;  // NEW
+    
     private XYPlot tempHistoryPlot;
     private TempPlotSeries tempPlotSeries;          // implements XYSeries
     LineAndPointFormatter tempGraphFormatter;
@@ -120,6 +122,8 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         tempHistoryPlot.addSeries(tempPlotSeries, tempGraphFormatter);
         tempGraphWidget = tempHistoryPlot.getGraph();
         
+        ThermocoupleService thermocoupleServiceRef;
+        
         
         uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );  // TODO: dump?
         
@@ -148,20 +152,18 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         } );
         
         
-        // Moved to ThermocoupleApp
-        /*bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
-        // Note: startForegroundService() requires API 26
-        serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // bind to it AND start it
-        if( DEBUG ) {  // seems to never fail to start
-            if( serviceComponentName != null ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
-            else throw new NullPointerException( "Attempt to start Service failed" );
-        }*/
+        // Moved to ThermocoupleApp (service binding)
+        
+        thermocoupleServiceConnection = new ThermocoupleServiceConnection();  // NEW
         
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );  // FIXME: this also doesn't work for context
-        serviceBound = bindService( bindThermoServiceIntent, this, Context.BIND_AUTO_CREATE );
+        //serviceBound = bindService( bindThermoServiceIntent, this, Context.BIND_AUTO_CREATE );
+        serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_AUTO_CREATE );  // NEW ServiceConnection impl
         if( DEBUG ) {
             if( serviceBound ) {
                 Log.d( TAG, "bindService() reports that ThermocoupleService is bound");  // always reports bound
+                thermocoupleServiceRef = thermocoupleServiceConnection.getThermocoupleService();
+                if( DEBUG ) Log.d( TAG, "thermocoupleServiceRef = " + thermocoupleServiceRef.toString() );  // FIXME: NPE
             } else {
                 Log.d( TAG, "bindService() reports that ThermocoupleService is NOT bound");
             }
@@ -308,7 +310,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         
         // subscribe to updates in temp history for graphing
         
-//        if( thermoServiceRef == null ) throw new NullPointerException( "thermoServiceRef returns null" );  // FIXME: returning null
+        if( appInstance.thermocoupleService == null ) throw new NullPointerException( "appInstance.thermocoupleService returns null" );  // FIXME: returning null
 //        if( thermoServiceRef.tempHistRelay == null ) throw new NullPointerException( "tempHistRelay returns null" );
         
         graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(

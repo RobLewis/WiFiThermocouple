@@ -67,8 +67,9 @@ class BBQController implements PIDController {
     
     @Override  // TODO: does it make sense to be able to stop, and start with same values?  (see: restart())   OK
     public synchronized boolean start( ) {  // return false if setpoint hasn't been set
+        pidHandler.removeCallbacksAndMessages( null );  // cancel any pending loop run (flush everything)
         if ( pidState.getSetPoint() == null /*|| pidState.isReset()*/ || pidState.getPeriodSecs() == null ) {  // TODO: other conditions
-            pidState.setEnabled( false );
+            stop();
             if( DEBUG ) Log.d( TAG, "Can't start PID" );
             return false;
         }
@@ -79,16 +80,17 @@ class BBQController implements PIDController {
         pidState.setIntAccum( 0f );
         pidState.setPublishChanges( true );
         pidState.setPreviousVariableValue( pidState.getCurrentVariableValue() );  // TODO: right?
-        //pidHandler.post( pidLoopRunnable );  // start the loop TODO: anything else needed before we start?
-        if( DEBUG ) Log.d( TAG, "start() completed successfully(?), skipping .post()" );
+        pidHandler.post( pidLoopRunnable );  // start the loop TODO: anything else needed before we start?
+        if( DEBUG ) Log.d( TAG, "start() completed successfully" );
         return true;
     }
     
     @Override  // OK
     public synchronized boolean stop( ) {
-        pidHandler.removeCallbacks( pidLoopRunnable );  // cancel any pending loop run
-        appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe( );
-        pidState.setEnabled( false );  // loop keeps running
+        pidHandler.removeCallbacksAndMessages( null );  // cancel any pending loop run (flush everything)
+        appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe( );  // fan off
+        pidState.setEnabled( false );
+        pidHandler.post( pidLoopRunnable );  // loop keeps running TODO: does it need to? (tempGetter is recording data)
         return true;
     }
     
@@ -269,11 +271,8 @@ class BBQController implements PIDController {
             outputPercent = getGain() * (proportionalTerm + integralTerm - differentialTerm);
             
             // clamped if output is out of range and the integral term and error have the same sign
-            pidState.setIntClamped( (outputPercent > 100f || outputPercent < 0f) && ( (integralTerm * error) > 0f) );  // TODO: ?
-            
-            // probably don't want to manipulate UI here for Service version
-            //appInstance.graphActivityRef.pidButtonTextPublisher.onNext( appInstance.pidState.intIsClamped()?
-            //        "PID is enabled (clamped)" : "PID is enabled" );
+            clamped = (outputPercent > 100f || outputPercent < 0f) && ( (integralTerm * error) > 0f );
+            pidState.setIntClamped( clamped );
             
             outputPercent = outputPercent < 0f? 0f : outputPercent;
             outputPercent = outputPercent > 100f? 100f : outputPercent;
@@ -282,18 +281,10 @@ class BBQController implements PIDController {
             // actually do output control only if PID is enabled and % is > minimum that we act on
             if( isRunning() ) {
                 if ( outputPercent >= getMinOutPctg( ) ) {  // want to enable output
-                    
                     pidHandler.post( () -> setOutputOn( true ) );
-//                    pidHandler.post( ( ) -> appInstance.wifiCommunicator.fanControlWithWarning( true ).subscribe(
-//                            //response -> graphActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN ON" )
-//                            response -> pidState.setOutputOn( true )  // TODO: ?
-//                    ) );
-                    if ( outputPercent < 100f ) { // schedule a turnoff if <100%
+                    if ( outputPercent < (100f - getMinOutPctg()) ) { // schedule a turnoff unless close to 100%
                         pidHandler.postDelayed( () -> setOutputOn( false ),
-//                        ( ) -> appInstance.wifiCommunicator.fanControlWithWarning( false ).subscribe(
-//                                        //response -> graphActivityRef.fanButtonTextPublisher.onNext( "PID TURNED FAN OFF" )
-//                                        response -> pidState.setOutputOn( false )  // TODO: ?
-                                (long) ( getPeriodMs( ) * outputPercent / 100f) );  // delay time // TODO: ?
+                                (long) ( getPeriodMs( ) * outputPercent / 100f) );  // delay time
                     }
                 } else {  // outputPercent < MIN_OUTPUT_PCT -- turn fan off just to be safe
                     pidHandler.post( () -> setOutputOn( false ) );

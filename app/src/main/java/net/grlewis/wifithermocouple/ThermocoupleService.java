@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.util.Pair;
@@ -48,6 +49,11 @@ import static net.grlewis.wifithermocouple.Constants.WATCHDOG_RESET_SECONDS;
  *
  * All the stuff that runs in the background
  *
+ * PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+        "MyApp::MyWakelockTag");
+wakeLock.acquire();
+ *
  */
 
 
@@ -55,17 +61,15 @@ public class ThermocoupleService extends Service {
     
     private static final String TAG = ThermocoupleService.class.getSimpleName();
     
-    public ThermocoupleService( ) {  } // required empty constructor?
+    public ThermocoupleService( ) {  } // required empty constructor?  (same crash with or without)
     
     ThermocoupleApp appInstance;
     
-    
     Disposable tempUpdateDisp;
     Disposable watchdogMaintainDisp;  // NEW: to enable, feed, and disable watchdog
+    CompositeDisposable serviceCompositeDisp;
     
     Notification runningNotification;
-    
-    CompositeDisposable serviceCompositeDisp;
     
     // create a Handler on a separate thread for PID
     HandlerThread pidHandlerThread;
@@ -77,14 +81,15 @@ public class ThermocoupleService extends Service {
     
     private IBinder thermoBinder;
     
+    PowerManager powerManager;
+    PowerManager.WakeLock wakeLock;
+    
     
     /*------------------------------- START OF SERVICE BINDING STUFF ---------------------------------*/
     // Binder given to clients for service--returns this instance of the Service class
     class LocalBinder extends Binder {
         ThermocoupleService getService() {
             Log.d( TAG, "Entering thermoBinder.getService()" );
-            // return this instance of the Service so Clients can call public methods
-            // (note you can call static methods with an instance identifier)
             return ThermocoupleService.this; // include class name; otherwise "this" == LocalBinder
         }
     }
@@ -94,6 +99,12 @@ public class ThermocoupleService extends Service {
         Log.d( TAG, "Entering onBind()" );
         // Here can fetch "Extra" info sent with the Intent
         return thermoBinder; // client can call the returned instance with .getService
+    }
+    
+    @Override
+    public boolean onUnbind( Intent intent ) {  // FIXME: NEW (not printing message)
+        if( DEBUG ) Log.d( TAG, "onUnbind() called with Intent " + intent.toString() );
+        return super.onUnbind( intent );
     }
     /*-------------------------------- END OF SERVICE BINDING STUFF ----------------------------------*/
     
@@ -108,7 +119,8 @@ public class ThermocoupleService extends Service {
         if( DEBUG ) Log.d( TAG, "entering onCreate()");
     
         appInstance = ThermocoupleApp.getSoleInstance();
-        
+        if( DEBUG ) Log.d( TAG, "set appInstance to sole instance of App singleton");
+    
         serviceCompositeDisp = new CompositeDisposable(  );  // TODO; does this fix NPE?
         
         // create Handler
@@ -126,8 +138,12 @@ public class ThermocoupleService extends Service {
         
         appInstance.setServiceRef( this );  // FIXME?: desperation when binding wont work
         
+        powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG + ":WakeLock" );
+        wakeLock.acquire( 12 * 60 * 60 * 1000L );  // 12 hour timeout
+        if( DEBUG ) Log.d( TAG, "WakeLock acquired for 12 hours");
+        
         if( DEBUG ) Log.d( TAG, "exiting onCreate()");
-    
     
     }
     
@@ -140,6 +156,7 @@ public class ThermocoupleService extends Service {
     
         if( DEBUG ) Log.d( TAG, "onStartCommand() entered");  // never prints
         
+        // commenting out this section doesn't change null pointer crash
         // if you want to keep the Service from being killed, must have an ongoing notification (Compat builder for API < 26)
         // the Notification doesn't seem to be working (there is one that the App is, so maybe that's it???)
         runningNotification = new NotificationCompat.Builder( getApplicationContext(), "Channel 1" )
@@ -148,6 +165,7 @@ public class ThermocoupleService extends Service {
                 .setOngoing( true )
                 .build();
         startForeground( SERVICE_NOTIFICATION_ID, runningNotification );  // NEW need to cancel on destroy
+        if( DEBUG ) Log.d( TAG, "returned from startForeground()");
         
         if( intent != null ) {  // this is an initial start, not a restart after killing
             
@@ -172,6 +190,7 @@ public class ThermocoupleService extends Service {
             serviceCompositeDisp.add( tempUpdateDisp );
             
             // start the BBQ Controller loop (we think it's fixed to not change UI and run all the time)
+            pidHandler.removeCallbacksAndMessages( null );  // cancel any pending loop run (flush everything)
             pidHandler.postDelayed( appInstance.bbqController.pidLoopRunnable, 2000L );  // give it a couple seconds
             
         } else {  // this is a restart
@@ -186,6 +205,7 @@ public class ThermocoupleService extends Service {
         serviceCompositeDisp.clear();   //  kill all the subscriptions
         appInstance.bbqController.stop();  // remove callbacks etc.
         stopForeground( true );  // remove the Notification
+        wakeLock.release();
         super.onDestroy( );
     }
     
