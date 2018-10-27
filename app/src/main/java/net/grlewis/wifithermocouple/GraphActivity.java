@@ -125,6 +125,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         
         
         
+/* Commenting this out doesn't affect crash
         uiStateModel = ViewModelProviders.of(this).get( UIStateModel.class );  // TODO: dump?
         
         // Create the LiveData observer that updates the UI.  TODO: dump?
@@ -138,6 +139,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         };
         // Observe the LiveData, passing in this activity as the LifecycleOwner and the observer.
         uiStateModel.getCurrentUIState().observe(this, uiStateObserver );
+*/
         
         //appInstance.wifiCommunicator = new WiFiCommunicator();  // moved it from Application because Activity needs to exist first
         
@@ -154,14 +156,19 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         
         // Moved to ThermocoupleApp (service binding)
         
-        thermocoupleServiceConnection = new ThermocoupleServiceConnection();  // NEW
+        thermocoupleServiceConnection = new ThermocoupleServiceConnection();  // NEW  --constructor logs
         
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );  // FIXME: this also doesn't work for context
-        serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_AUTO_CREATE );  // NEW ServiceConnection impl
+        //serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_AUTO_CREATE );  // NEW ServiceConnection impl
+        serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_ABOVE_CLIENT );  // NEW try this--nope
         if( DEBUG ) {
             if( serviceBound ) {
                 Log.d( TAG, "bindService() reports that ThermocoupleService is bound");  // always reports bound
-                thermocoupleServiceRef = thermocoupleServiceConnection.getThermocoupleService();
+    
+                serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // doesn't help
+                if( DEBUG ) Log.d( TAG, "new startService() call returns ComponentName " + serviceComponentName.toShortString() );  // WORKS
+                
+                thermocoupleServiceRef = thermocoupleServiceConnection.getThermocoupleService();  // null
                 if( DEBUG ) Log.d( TAG, "thermocoupleServiceRef = " + thermocoupleServiceRef.toString() );  // FIXME: NPE
             } else {
                 Log.d( TAG, "bindService() reports that ThermocoupleService is NOT bound");

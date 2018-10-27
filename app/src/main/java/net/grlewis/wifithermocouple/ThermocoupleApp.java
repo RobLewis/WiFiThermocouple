@@ -3,10 +3,7 @@ package net.grlewis.wifithermocouple;
 import android.app.Application;
 import android.content.ComponentName;
 import android.content.Intent;
-import android.os.SystemClock;
 import android.util.Log;
-
-import io.reactivex.disposables.CompositeDisposable;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
@@ -32,14 +29,12 @@ public class ThermocoupleApp extends Application {
     BBQController bbqController;
     ComponentName serviceComponentName;
     ThermocoupleService thermocoupleService;
-    GraphActivity graphActivityRef;
+    GraphActivity graphActivity;
     
     Intent startThermoServiceIntent;
     
-    
-    
     // retrieve the app instance to request access to its instance variables
-    public static ThermocoupleApp getSoleInstance() { return sAppInstance; } // can use this to retrieve e.g. the sole rxBleClient
+    public static ThermocoupleApp getSoleInstance() { return sAppInstance; }
     
     @Override
     public void onCreate() {
@@ -54,8 +49,7 @@ public class ThermocoupleApp extends Application {
     }
     
     protected void initialize() {
-        // do all your initialization in this instance method
-        // (with instance members, not static)
+        // do initialization in this instance method (with instance members, not static)
         if( DEBUG ) Log.d( TAG, "App initialize() entered");
         
         startThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
@@ -79,7 +73,7 @@ public class ThermocoupleApp extends Application {
     
     
     
-    void setGraphActivityRef( GraphActivity graphActivity ) { graphActivityRef = graphActivity; }
+    void setGraphActivity( GraphActivity graphActivity ) { this.graphActivity = graphActivity; }
     
     void setServiceRef( ThermocoupleService serviceRef ) { thermocoupleService = serviceRef; }  // FIXME: desperation
     

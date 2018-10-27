@@ -140,16 +140,8 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         fanTurnon = new AsyncHTTPRequester( FAN_ON_URL, client, fanControlUUIDSupplier );
         fanTurnoff = new AsyncHTTPRequester( FAN_OFF_URL, client, fanControlUUIDSupplier );
         
-        // NEW: used by watchdogEnableObservable below
-//        watchdogIntervalResetter = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )
-//                .map( resetTime -> {
-//                    watchdogFeeder.request().retry( 2L ).subscribe();
-//                    if( DEBUG ) Log.d( TAG, "watchdog fed by watchdogIntervalResetter" );
-//                    return resetTime;
-//                } );  // Single
-        
         // NEW: subscribe to enable the watchdog and start feeding, unsubscribe to disable
-        // TODO: test; should replace other schemes
+        // TODO: test; should replace other schemes -- seems to work
         watchDogMaintainObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )
                 .doOnSubscribe( disposable -> watchdogEnabler.request().retry( 2L ).subscribe( ) )
                 .map( resetTime -> {
@@ -159,6 +151,8 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                 })
                 .doOnDispose( () -> watchdogDisabler.request().retry( 2L ).subscribe( ) );
         
+        if( DEBUG ) Log.d( TAG, "exiting constructor" );
+    
     }
     
     

@@ -19,7 +19,7 @@ import java.net.URL;
 
 final class Constants {
     
-    static final String TAG = Constants.class.getSimpleName();
+    private static final String TAG = Constants.class.getSimpleName();
     
     final static boolean DEBUG = true;
     

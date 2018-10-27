@@ -20,12 +20,16 @@ class ThermocoupleServiceConnection implements ServiceConnection {
     private ThermocoupleService.LocalBinder scBinder;
     private ThermocoupleService thermocoupleService;
     
+    ThermocoupleServiceConnection() {
+        if( DEBUG ) Log.d( TAG, "exiting constructor" );
+    }
+    
     @Override
     public void onBindingDied( ComponentName name ) {
         if( DEBUG ) Log.d( TAG, "onBindingDied() called for component " + name.toShortString() );
     }
     
-    @Override
+    @Override  // FIXME: supposed to be called when Service connects, not happening
     public void onServiceConnected( ComponentName name, IBinder service ) {
         if( DEBUG ) Log.d( TAG, "onServiceConnected() called for component " + name.toShortString()
                 + " with Binder " + service.toString() );

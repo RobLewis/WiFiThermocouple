@@ -36,10 +36,11 @@ class BBQController implements PIDController {
     BBQController( Handler newHandler ) {
         appInstance = ThermocoupleApp.getSoleInstance();
         pidState = appInstance.pidState;
-        graphActivityRef = appInstance.graphActivityRef;  // TODO: need?
+        graphActivityRef = appInstance.graphActivity;  // TODO: need?
         pidHandler = newHandler;
         pidLoopRunnable = new PIDLoopRunnable( );
         pidState.set( DEFAULT_SETPOINT );  // need some defined setpoint or won't start
+        if( DEBUG ) Log.d( TAG, "exiting constructor" );
     }
     
     

@@ -3,6 +3,8 @@ package net.grlewis.wifithermocouple;
 // Class to store current PID appState and to use for a library of states
 // We're using objects so the null state means "undefined"
 
+import android.util.Log;
+
 import java.io.Serializable;
 
 import io.reactivex.subjects.BehaviorSubject;
@@ -10,6 +12,8 @@ import io.reactivex.subjects.BehaviorSubject;
 import static net.grlewis.wifithermocouple.Constants.*;
 
 class PIDState implements Cloneable, Serializable {
+    
+    private final static String TAG = PIDState.class.getSimpleName();
     
     private Parameters parameters;
     public BehaviorSubject<Parameters> pidStatePublisher;
@@ -69,6 +73,7 @@ class PIDState implements Cloneable, Serializable {
         parameters = new Parameters();
         pidStatePublisher = BehaviorSubject.createDefault( parameters );
         publishChanges = true;  // by default, publish changes
+        if( DEBUG ) Log.d( TAG, "exiting constructor" );
     }
     
     

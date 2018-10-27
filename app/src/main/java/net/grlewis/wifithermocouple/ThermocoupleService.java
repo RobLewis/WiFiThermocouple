@@ -206,6 +206,7 @@ public class ThermocoupleService extends Service {
         appInstance.bbqController.stop();  // remove callbacks etc.
         stopForeground( true );  // remove the Notification
         wakeLock.release();
+        stopSelf();  // NEW
         super.onDestroy( );
     }
     

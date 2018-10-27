@@ -1,14 +1,18 @@
 package net.grlewis.wifithermocouple;
 
 
+import android.util.Log;
+
 import java.util.Date;
 
+import static net.grlewis.wifithermocouple.Constants.DEBUG;
 import static net.grlewis.wifithermocouple.Constants.HARDWARE_VERSION;
 import static net.grlewis.wifithermocouple.Constants.SOFTWARE_VERSION;
 
 class ApplicationState
 
 {
+    private static final String TAG = ApplicationState.class.getSimpleName();
     
     // instance variables
     
@@ -39,7 +43,7 @@ class ApplicationState
     // constructor
     // note boxed versions of variables should auto initialize null
     ApplicationState() {
-    
+        if( DEBUG ) Log.d( TAG, "exiting constructor" );
     }
     
     
