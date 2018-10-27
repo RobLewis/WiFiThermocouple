@@ -160,7 +160,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );  // FIXME: this also doesn't work for context
         //serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_AUTO_CREATE );  // NEW ServiceConnection impl
-        serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_ABOVE_CLIENT );  // NEW try this--nope
+        serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_ABOVE_CLIENT + BIND_AUTO_CREATE );  // NEW try this--nope
         if( DEBUG ) {
             if( serviceBound ) {
                 Log.d( TAG, "bindService() reports that ThermocoupleService is bound");  // always reports bound

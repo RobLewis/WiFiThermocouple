@@ -79,7 +79,8 @@ public class ThermocoupleService extends Service {
     private ArrayBlockingQueue<Pair<Date, Float>> timestampedHistory;
     BehaviorRelay<ArrayBlockingQueue<Pair<Date, Float>>> tempHistRelay;
     
-    private IBinder thermoBinder;
+    private IBinder thermoBinder;  // FIXME? ?????????
+    //private IBinder thermoBinder = new LocalBinder();  // no help
     
     PowerManager powerManager;
     PowerManager.WakeLock wakeLock;
@@ -88,6 +89,9 @@ public class ThermocoupleService extends Service {
     /*------------------------------- START OF SERVICE BINDING STUFF ---------------------------------*/
     // Binder given to clients for service--returns this instance of the Service class
     class LocalBinder extends Binder {
+        LocalBinder() {
+            if( DEBUG ) Log.d( "LocalBinder", "constructor entered" );  // FIXME: not logging
+        }
         ThermocoupleService getService() {
             Log.d( TAG, "Entering thermoBinder.getService()" );
             return ThermocoupleService.this; // include class name; otherwise "this" == LocalBinder
