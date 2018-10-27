@@ -93,7 +93,7 @@ public class ThermocoupleService extends Service {
             if( DEBUG ) Log.d( "LocalBinder", "constructor entered" );  // FIXME: not logging
         }
         ThermocoupleService getService() {
-            Log.d( TAG, "Entering thermoBinder.getService()" );
+            Log.d( TAG, "Entering thermoBinder.getService()" );  // not logging
             return ThermocoupleService.this; // include class name; otherwise "this" == LocalBinder
         }
     }
@@ -102,7 +102,7 @@ public class ThermocoupleService extends Service {
     public IBinder onBind( Intent intent ) {
         Log.d( TAG, "Entering onBind()" );
         // Here can fetch "Extra" info sent with the Intent
-        return thermoBinder; // client can call the returned instance with .getService
+        return thermoBinder; // client can call the returned instance's .getService()
     }
     
     @Override
