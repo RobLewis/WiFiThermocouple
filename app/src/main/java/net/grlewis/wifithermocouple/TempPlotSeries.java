@@ -27,10 +27,10 @@ class TempPlotSeries implements XYSeries, PlotListener {
     
     void updatePlotData( ArrayBlockingQueue<Pair<Date, Float>> dataQueue ) throws InterruptedException {
         synchronized ( this ) {
-            wait();       // don't update data until we're notified that current plot is done (& we can get lock)
+            //wait();       // don't update data until we're notified that current plot is done (& we can get lock) FIXME: elimination of wait/notify fixes app freeze
             plotArray = dataQueue.toArray( new Pair[0] );
             if( DEBUG ) Log.d( TAG, "updatePlotData run with " + plotArray.length + " data points" );
-            notifyAll();  // release lock & let other threads know they can continue
+            //notifyAll();  // release lock & let other threads know they can continue
         }
     }
     

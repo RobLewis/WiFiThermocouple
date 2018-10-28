@@ -367,7 +367,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                 .observeOn( AndroidSchedulers.mainThread() )  // FIXME: this fixes blanking of screen but apparently freezes app
                 .subscribe(
                         newTempHistory -> {
-                            if( DEBUG ) Log.d( TAG, "onNext called in tempHistRelay with item " + newTempHistory.toString() );
+                            if( DEBUG ) Log.d( TAG, "onNext called in tempHistRelay" );
                             tempPlotSeries.updatePlotData( newTempHistory );  // with sync
                             // TODO: redraw the graph
                             tempHistoryPlot.redraw();  // FIXME: this apparently isn't the offending line that erases the UI (see above)
