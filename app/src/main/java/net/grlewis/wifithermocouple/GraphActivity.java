@@ -365,9 +365,10 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         // update the graph
         graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(
                 newTempHistory -> {
+                    if( DEBUG ) Log.d( TAG, "onNext called in tempHistRelay with item " + newTempHistory.toString() );
                     tempPlotSeries.updatePlotData( newTempHistory );  // with sync
                     // TODO: redraw the graph
-                    tempHistoryPlot.redraw();
+                    tempHistoryPlot.redraw();  // FIXME: this apparently isn't the offending line that erases the UI
                     if( DEBUG ) Log.d( TAG, "called tempHistoryPlot.redraw()" );
                 }
         );

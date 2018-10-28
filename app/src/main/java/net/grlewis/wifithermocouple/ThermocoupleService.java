@@ -173,8 +173,8 @@ public class ThermocoupleService extends Service {
                     .doOnNext( temp -> {
                         while( timestampedHistory.remainingCapacity() < 1 ) timestampedHistory.poll();  // make space in the queue if needed, discarding oldest
                         timestampedHistory.add( new Pair<>( new Date( ), temp ) );  // TODO: make it an ImmutableTriple with %DC?
-                        //tempHistRelay.accept( timestampedHistory );  // relay the new history to UI or anyone listening (this kills UI if data exists)
-                        if( DEBUG ) Log.d( TAG, "new temp sample relayed" );
+                        tempHistRelay.accept( timestampedHistory );  // relay the new history FIXME: this kills UI if data exists
+                        if( DEBUG ) Log.d( TAG, "new temp value relayed: " + temp + "; queue size: " + timestampedHistory.size() );
                     })
                     .subscribe(
                             // TODO: add smoothing?
