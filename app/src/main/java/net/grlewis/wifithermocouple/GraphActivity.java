@@ -263,7 +263,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                         }
                 );
         onPauseDisp.add( tempSliderDisp );
-        
+
 // trying this in the onServiceConnected callback
 /*
         // subscribe to updates in temp history for graphing
@@ -360,21 +360,23 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                         }
                 );
         onStopDisp.add( pidParameterChangesDisp );  // dispose in onStop()
-    
+        
         
         // update the graph
-        graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(
-                newTempHistory -> {
-                    if( DEBUG ) Log.d( TAG, "onNext called in tempHistRelay with item " + newTempHistory.toString() );
-                    tempPlotSeries.updatePlotData( newTempHistory );  // with sync
-                    // TODO: redraw the graph
-                    tempHistoryPlot.redraw();  // FIXME: this apparently isn't the offending line that erases the UI
-                    if( DEBUG ) Log.d( TAG, "called tempHistoryPlot.redraw()" );
-                }
-        );
+        graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay
+                .observeOn( AndroidSchedulers.mainThread() )  // FIXME: this fixes blanking of screen but apparently freezes app
+                .subscribe(
+                        newTempHistory -> {
+                            if( DEBUG ) Log.d( TAG, "onNext called in tempHistRelay with item " + newTempHistory.toString() );
+                            tempPlotSeries.updatePlotData( newTempHistory );  // with sync
+                            // TODO: redraw the graph
+                            tempHistoryPlot.redraw();  // FIXME: this apparently isn't the offending line that erases the UI (see above)
+                            if( DEBUG ) Log.d( TAG, "called tempHistoryPlot.redraw()" );
+                        }
+                );
         onStopDisp.add( graphDataUpdateDisp );
-    
-    
+        
+        
         tempSlider.setProgress( Math.round( appInstance.bbqController.getSetpoint() ) );
         
         // set initial applicationState
