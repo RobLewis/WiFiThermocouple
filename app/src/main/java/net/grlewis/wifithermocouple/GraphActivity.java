@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -34,6 +35,7 @@ import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
 
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
 
@@ -64,6 +66,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     Disposable tempSliderDisp;
     Disposable pidParameterChangesDisp;   // Service impl
     Disposable graphDataUpdateDisp;       // relay of graphing data
+    Disposable serviceConnectionDisp;
     
     CompositeDisposable onPauseDisp;
     CompositeDisposable onStopDisp;
@@ -72,14 +75,13 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     private UIStateModel uiStateModel;
     
     // Created & used by onStart() in call to bindService()
-    Intent bindThermoServiceIntent; // can pass extra data to the Service if we need to
-    ThermocoupleService thermoServiceRef;           // set when Service is bound
+    Intent bindThermoServiceIntent;                 // can pass extra data to the Service if we need to
+    volatile ThermocoupleService thermoServiceRef;  // set when Service is connected, nulled when lost
     ThermocoupleService.LocalBinder thermoBinder;   // part of binding operation, not used otherwise
     ComponentName serviceComponentName;             // returned by .startService(); just logged
     boolean serviceBound;                           // did service binding succeed?
     
-    ThermocoupleServiceConnection thermocoupleServiceConnection;  // NEW
-    ThermocoupleService thermocoupleServiceRef;
+    ThermocoupleServiceConnection thermocoupleServiceConnection;  // NEW  TODO: dump
     
     private XYPlot tempHistoryPlot;
     private TempPlotSeries tempPlotSeries;          // implements XYSeries
@@ -156,24 +158,8 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         
         // Moved to ThermocoupleApp (service binding)
         
-        thermocoupleServiceConnection = new ThermocoupleServiceConnection();  // NEW  --constructor logs
+        thermocoupleServiceConnection = new ThermocoupleServiceConnection();  // NEW  --constructor logs TODO: eliminate(?)
         
-        bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );  // FIXME: this also doesn't work for context
-        //serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_AUTO_CREATE );  // NEW ServiceConnection impl
-        serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_ABOVE_CLIENT + BIND_AUTO_CREATE );  // NEW try this--nope
-        if( DEBUG ) {
-            if( serviceBound ) {
-                Log.d( TAG, "bindService() reports that ThermocoupleService is bound");  // always reports bound
-    
-                serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // doesn't help
-                if( DEBUG ) Log.d( TAG, "new startService() call returns ComponentName " + serviceComponentName.toShortString() );  // WORKS
-                
-                thermocoupleServiceRef = thermocoupleServiceConnection.getThermocoupleService();  // null
-                if( DEBUG ) Log.d( TAG, "thermocoupleServiceRef = " + thermocoupleServiceRef.toString() );  // FIXME: NPE
-            } else {
-                Log.d( TAG, "bindService() reports that ThermocoupleService is NOT bound");
-            }
-        }
         
         
         if( DEBUG ) Log.d( TAG, "Exiting onCreate()" );
@@ -182,56 +168,27 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     
     @Override
     @SuppressLint( "CheckResult" )  // suppress "result of subscribe is not used" warnings
+    // "If you need to interact with a Service only while your activity is visible, you should bind during onStart() and unbind during onStop()"
     protected void onStart( ) {
         
         if( DEBUG ) Log.d( TAG, "Entering onStart()" );
         super.onStart( );
         
-        // part of Service implementation (onStart() is a good place to bind Services)
-/*  try moving to onCreate()
         bindThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
-        if( !( serviceBound = bindService( bindThermoServiceIntent, */
-        /*ServiceConnection*//*
- this, Context.BIND_AUTO_CREATE ) ) ) // flag: create the service if it's bound
-            throw new RuntimeException( TAG + ": bindService() call in onStart() failed" );
-        // Note: startForegroundService requires API 26
-        serviceComponentName = getApplicationContext().startService( bindThermoServiceIntent );  // bind to it AND start it
-        if( DEBUG ) Log.d( TAG, "Service running with ComponentName " + serviceComponentName.toShortString() );  // looks OK
-*/
+        //serviceBound = bindService( bindThermoServiceIntent, thermocoupleServiceConnection, Context.BIND_AUTO_CREATE );  // NEW ServiceConnection impl
+        serviceBound = bindService( bindThermoServiceIntent, this, Context.BIND_ABOVE_CLIENT + BIND_AUTO_CREATE );  // NEW try this
+        if( DEBUG ) {
+            if( serviceBound ) {
+                Log.d( TAG, "bindService() reports that ThermocoupleService is bound");  // always reports bound
+            } else {
+                Log.d( TAG, "bindService() reports that ThermocoupleService is NOT bound");
+            }
+        }
         
+        // kill some time
+        Toast.makeText( this, "Connecting to Service…", Toast.LENGTH_LONG ).show();
         
-        // This updates the UI except for the (NEW) temp history graph and perhaps other stuff
-        pidParameterChangesDisp = appInstance.pidState.pidStatePublisher
-                .observeOn( AndroidSchedulers.mainThread() )  // don't forget!
-                .subscribe(  // receive updated parameters & redraw UI
-                        updatedParams -> {
-                            updateTempButton.setText( "Current Temperature: " + updatedParams.currentVariableValue + "°F" );  // FIXME: not getting set?
-                            togglePIDButton.setText( "PID enabled: " + updatedParams.enabled
-                                    + (updatedParams.intClamped? " (clamped)" : "") );
-                            toggleFanButton.setText( "PID output on: " + updatedParams.outputOn );
-                            setTempButton.setText( "Current Setpoint: " + updatedParams.setPoint + "°F" );
-                        }
-                );
-        onStopDisp.add( pidParameterChangesDisp );  // TODO: dispose in both onStop() and onDestroy() (?)
-        
-        // above is part of Service implementation
-        
-        
-        tempSlider.setProgress( Math.round( appInstance.bbqController.getSetpoint() ) );
-        
-        // set initial appState
-        // make sure fan is off
-        appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off  FIXME: first bad UUID?
-                .retry( 2 )  // try up to 3 times
-                .subscribe(
-                        httpResponse -> {
-                            toggleFanButton.setText( "FAN IS INITIALLY OFF" );
-                        },
-                        httpError -> {
-                            Toast.makeText( GraphActivity.this, "Fan shutoff in onStart() failed after retries"
-                                    + httpError.getMessage(), Toast.LENGTH_LONG ).show();
-                            toggleFanButton.setText( "Error turning fan off in onStart()" );
-                        } );
+        // we continue upon getting the onServiceConnected() callback
         
         if( DEBUG ) Log.d( TAG, "Exiting onStart()" );
     }
@@ -241,6 +198,9 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         
         if( DEBUG ) Log.d( TAG, "Entering onResume()" );
         super.onResume( );
+        
+        // kill some more time?
+        Toast.makeText( this, "Waiting to connect to Service…", Toast.LENGTH_SHORT ).show();
         
         // handle clicks on the Fan On/Off button: switch fan and update button text
         // TODO: not part of final system?
@@ -316,17 +276,21 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         
         // subscribe to updates in temp history for graphing
         
-        if( appInstance.thermocoupleService == null ) throw new NullPointerException( "appInstance.thermocoupleService returns null" );  // FIXME: returning null
-//        if( thermoServiceRef.tempHistRelay == null ) throw new NullPointerException( "tempHistRelay returns null" );
-        
-        graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(
-                newTempHistory -> {
-                    tempPlotSeries.updatePlotData( newTempHistory );  // with sync
-                    // TODO: redraw the graph
-                    tempHistoryPlot.redraw();
-                }
-        );
-        onPauseDisp.add( graphDataUpdateDisp );
+        serviceConnectionDisp = appInstance.serviceConnectionState  // NEW
+                .subscribeOn( Schedulers.computation() )
+                .subscribe(
+                        state -> {
+                            if ( state ) graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(
+                                    newTempHistory -> {
+                                        tempPlotSeries.updatePlotData( newTempHistory );  // with sync
+                                        // TODO: redraw the graph
+                                        tempHistoryPlot.redraw();
+                                    }
+                            );
+                            else graphDataUpdateDisp.dispose();
+                        },
+                        error -> Log.d( TAG, "Error in serviceConnectionState: " + error.getMessage() )
+                );
         
         
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
@@ -372,17 +336,64 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     // Here, the IBinder has a getService() method that returns a reference to the Service instance
     @SuppressWarnings( "static-access" )
     public void onServiceConnected( ComponentName className, IBinder service ) {  // service is an IBinder (interface implemented by Binder)
+        
         Log.d( TAG, "Entering onServiceConnected()" );
         // We've bound to Service, cast the IBinder and get Service instance
-        thermoBinder = (ThermocoupleService.LocalBinder) service;                 // FIXME:
+        thermoBinder = (ThermocoupleService.LocalBinder) service;
         // (casting it makes compiler aware of existence of getService() method)
-        thermoServiceRef = thermoBinder.getService();                             // FIXME: null
+        thermoServiceRef = thermoBinder.getService();
+        
+        appInstance.serviceConnectionState.accept( thermoServiceRef != null );  // emit the state of the service connection NEW
+        appInstance.thermocoupleService = thermoServiceRef;  // in app
+        
+        appInstance.thermocoupleService = thermoServiceRef;   // TODO: redundant?
         if( thermoServiceRef == null ) throw new RuntimeException( TAG
                 + ": onServiceConnected returned null from getService()" );
+        
+        
+        // This updates the UI except for the (NEW) temp history graph and perhaps other stuff
+        pidParameterChangesDisp = appInstance.pidState.pidStatePublisher
+                .observeOn( AndroidSchedulers.mainThread() )  // don't forget!
+                .subscribe(  // receive updated parameters & redraw UI
+                        updatedParams -> {
+                            updateTempButton.setText( "Current Temperature: " + updatedParams.currentVariableValue + "°F" );  // FIXME: not getting set?
+                            togglePIDButton.setText( "PID enabled: " + updatedParams.enabled
+                                    + (updatedParams.intClamped? " (clamped)" : "") );
+                            toggleFanButton.setText( "PID output on: " + updatedParams.outputOn );
+                            setTempButton.setText( "Current Setpoint: " + updatedParams.setPoint + "°F" );
+                        }
+                );
+        onStopDisp.add( pidParameterChangesDisp );  // TODO: dispose in both onStop() and onDestroy() (?)
+        
+        // above is part of Service implementation
+        
+        tempSlider.setProgress( Math.round( appInstance.bbqController.getSetpoint() ) );
+        
+        // set initial applicationState
+        // make sure fan is off
+        appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off  FIXME: first bad UUID?
+                .retry( 2 )  // try up to 3 times
+                .subscribe(
+                        httpResponse -> {
+                            toggleFanButton.setText( "FAN IS INITIALLY OFF" );
+                        },
+                        httpError -> {
+                            Toast.makeText( GraphActivity.this, "Fan shutoff in onStart() failed after retries"
+                                    + httpError.getMessage(), Toast.LENGTH_LONG ).show();
+                            toggleFanButton.setText( "Error turning fan off in onStart()" );
+                        } );
+        
         Log.d( TAG, "Finished onServiceConnected()" );
     }
+    
+    
     @Override // called when the connection with the service has been unexpectedly disconnected
     public void onServiceDisconnected( ComponentName name ) {  // component name of the service whose connection has been lost.
+        
+        thermoServiceRef = null;
+        appInstance.serviceConnectionState.accept( false );  //  NEW relay to listeners
+        appInstance.thermocoupleService = null;  // in app
+        
         Log.d( TAG, "Finished onServiceDisconnected()" );
     }
     /*------------------------------------------------------------------------------------------------*/

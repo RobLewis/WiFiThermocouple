@@ -140,7 +140,7 @@ public class ThermocoupleService extends Service {
     
         thermoBinder = new LocalBinder();
         
-        appInstance.setServiceRef( this );  // FIXME?: desperation when binding wont work
+        appInstance.setServiceRef( this );  // TODO: need this because the reference obtained by binding doesn't come until later?
         
         powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG + ":WakeLock" );

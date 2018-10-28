@@ -1,6 +1,6 @@
 package net.grlewis.wifithermocouple;
 
-// Class to store current PID appState and to use for a library of states
+// Class to store current PID applicationState and to use for a library of states
 // We're using objects so the null state means "undefined"
 
 import android.util.Log;
