@@ -16,7 +16,7 @@ class PIDState implements Cloneable, Serializable {
     private final static String TAG = PIDState.class.getSimpleName();
     
     private Parameters parameters;
-    public BehaviorSubject<Parameters> pidStatePublisher;
+    BehaviorSubject<Parameters> pidStatePublisher;
     private boolean publishChanges;
     private Float previousAnalogIn;
     

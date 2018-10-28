@@ -2,6 +2,7 @@ package net.grlewis.wifithermocouple;
 
 import android.graphics.Canvas;
 import android.os.SystemClock;
+import android.util.Log;
 import android.util.Pair;
 
 import com.androidplot.Plot;
@@ -12,12 +13,15 @@ import java.util.Date;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static net.grlewis.wifithermocouple.Constants.DEBUG;
 import static net.grlewis.wifithermocouple.Constants.HISTORY_BUFFER_SIZE;
 import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
 
-// implementation of XYSeries interface for AndroidPlot
+// implementation of XYSeries and PlotListener interfaces for AndroidPlot
 
 class TempPlotSeries implements XYSeries, PlotListener {
+    
+    private final static String TAG = TempPlotSeries.class.getSimpleName();
     
     private Pair<Date, Float>[] plotArray;
     
@@ -25,10 +29,10 @@ class TempPlotSeries implements XYSeries, PlotListener {
         synchronized ( this ) {
             wait();       // don't update data until we're notified that current plot is done (& we can get lock)
             plotArray = dataQueue.toArray( new Pair[0] );
+            if( DEBUG ) Log.d( TAG, "updatePlotData run with " + plotArray.length + " data points" );
             notifyAll();  // release lock & let other threads know they can continue
         }
     }
-    
     
     // XYSeries implementation
     // note it's only the draw routines that will call these methods, and drawing is locked out while updating data

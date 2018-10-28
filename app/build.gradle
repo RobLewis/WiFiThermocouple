@@ -5,7 +5,7 @@ android {
     defaultConfig {
         applicationId "net.grlewis.wifithermocouple"
         minSdkVersion 21
-        targetSdkVersion 26
+        targetSdkVersion 27
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
@@ -37,12 +37,11 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:3.11.0'
     implementation 'com.squareup.okio:okio:1.15.0'
     implementation 'io.reactivex.rxjava2:rxjava:2.2.2'
-    implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.0'       // Relay class
-    implementation 'com.jakewharton.rx2:replaying-share:2.1.0'    // ReplayingShare
-    implementation 'com.jakewharton.rxbinding2:rxbinding:2.2.0'   // RxBinding
+    implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.0'               // Relay class
+    implementation 'com.jakewharton.rx2:replaying-share:2.1.0'            // ReplayingShare
+    implementation 'com.jakewharton.rxbinding2:rxbinding:2.2.0'           // RxBinding
     implementation "android.arch.lifecycle:extensions:$lifecycle_version" // includes ViewModel and LiveData
 
     implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.8.1' // for tuples like Triple
-    implementation "com.androidplot:androidplot-core:1.5.6"       // AndroidPlot
-    //implementation "com.halfhp.fig:library:1.0.7"   // apparently required by AndroidPlot for some things FAILED TO RESOLVE
+    implementation "com.androidplot:androidplot-core:1.5.6"               // AndroidPlot
 }

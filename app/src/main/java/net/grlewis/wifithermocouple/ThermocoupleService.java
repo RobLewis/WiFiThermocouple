@@ -19,30 +19,17 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.Date;
-import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
-import io.reactivex.Observable;
 import io.reactivex.SingleEmitter;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Cancellable;
-import okhttp3.OkHttpClient;
-import okhttp3.Response;
 
 import static android.support.v4.app.NotificationCompat.CATEGORY_SERVICE;
 import static net.grlewis.wifithermocouple.Constants.DEBUG;
-import static net.grlewis.wifithermocouple.Constants.ENABLE_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.HISTORY_BUFFER_SIZE;
-import static net.grlewis.wifithermocouple.Constants.RESET_WD_URL;
 import static net.grlewis.wifithermocouple.Constants.SERVICE_NOTIFICATION_ID;
-import static net.grlewis.wifithermocouple.Constants.TEMP_F_URL;
-import static net.grlewis.wifithermocouple.Constants.TEMP_GET_UPPER_HALF;
-import static net.grlewis.wifithermocouple.Constants.TEMP_UPDATE_SECONDS;
-import static net.grlewis.wifithermocouple.Constants.WATCHDOG_ENABLE_UPPER_HALF;
-import static net.grlewis.wifithermocouple.Constants.WATCHDOG_FEED_UPPER_HALF;
-import static net.grlewis.wifithermocouple.Constants.WATCHDOG_RESET_SECONDS;
 
 
 /*
@@ -79,8 +66,7 @@ public class ThermocoupleService extends Service {
     private ArrayBlockingQueue<Pair<Date, Float>> timestampedHistory;
     BehaviorRelay<ArrayBlockingQueue<Pair<Date, Float>>> tempHistRelay;
     
-    private IBinder thermoBinder;  // FIXME? ?????????
-    //private IBinder thermoBinder = new LocalBinder();  // no help
+    private IBinder thermoBinder;
     
     PowerManager powerManager;
     PowerManager.WakeLock wakeLock;
@@ -119,12 +105,12 @@ public class ThermocoupleService extends Service {
     @Override
     public void onCreate( ) {
         super.onCreate( );
-    
+        
         if( DEBUG ) Log.d( TAG, "entering onCreate()");
-    
+        
         appInstance = ThermocoupleApp.getSoleInstance();
         if( DEBUG ) Log.d( TAG, "set appInstance to sole instance of App singleton");
-    
+        
         serviceCompositeDisp = new CompositeDisposable(  );  // TODO; does this fix NPE?
         
         // create Handler
@@ -137,7 +123,7 @@ public class ThermocoupleService extends Service {
         
         timestampedHistory = new ArrayBlockingQueue<>( HISTORY_BUFFER_SIZE );  // 720
         tempHistRelay = BehaviorRelay.create();
-    
+        
         thermoBinder = new LocalBinder();
         
         appInstance.setServiceRef( this );  // TODO: need this because the reference obtained by binding doesn't come until later?
@@ -148,19 +134,20 @@ public class ThermocoupleService extends Service {
         if( DEBUG ) Log.d( TAG, "WakeLock acquired for 12 hours");
         
         if( DEBUG ) Log.d( TAG, "exiting onCreate()");
-    
+        
     }
     
     @Override
     // called by Android every time a client calls Context.startService( Intent )
+    // multiple calls don't nest: one Stop suffices for any number of Starts
+    // the first Intent is cached and delivered to all subsequent starters
     // called with a null Intent if being restarted after killed (shouldn't happen)
     public int onStartCommand( Intent intent, int flags, int startId ) {  // Intent contains calling context and name of this class
-    
-        super.onStartCommand( intent, flags, startId );  // TODO: try putting this first, not last--no change
-    
-        if( DEBUG ) Log.d( TAG, "onStartCommand() entered");  // never prints
         
-        // commenting out this section doesn't change null pointer crash
+        super.onStartCommand( intent, flags, startId );  // TODO: try putting this first, not last--no change
+        
+        if( DEBUG ) Log.d( TAG, "onStartCommand() entered");
+        
         // if you want to keep the Service from being killed, must have an ongoing notification (Compat builder for API < 26)
         // the Notification doesn't seem to be working (there is one that the App is, so maybe that's it???)
         runningNotification = new NotificationCompat.Builder( getApplicationContext(), "Channel 1" )
@@ -168,37 +155,43 @@ public class ThermocoupleService extends Service {
                 .setCategory( CATEGORY_SERVICE )
                 .setOngoing( true )
                 .build();
-        startForeground( SERVICE_NOTIFICATION_ID, runningNotification );  // NEW need to cancel on destroy
-        if( DEBUG ) Log.d( TAG, "returned from startForeground()");
+        startForeground( SERVICE_NOTIFICATION_ID, runningNotification );   // NEW need to cancel on destroy
+        if( DEBUG ) Log.d( TAG, "returned from startForeground()");  // now prints
         
-        if( intent != null ) {  // this is an initial start, not a restart after killing  // FIXME: removing this if doesn't change crash
+        if( intent != null ) {  // this is an initial start, not a restart after killing  // TODO: keep?
             
-            // NEW: try the new combined "maintain" for the watchdog to enable, feed, and eventually disable
-            watchdogMaintainDisp = appInstance.wifiCommunicator.watchDogMaintainObservable.subscribe();
-            if( watchdogMaintainDisp != null ) serviceCompositeDisp.add( watchdogMaintainDisp );
+            if( DEBUG ) Log.d( TAG, "about to subscribe to watchdogMaintainObservable" );
+            watchdogMaintainDisp = appInstance.wifiCommunicator.watchDogMaintainObservable.subscribe();  // this is working
+            if( watchdogMaintainDisp != null ) serviceCompositeDisp.add( watchdogMaintainDisp );  // TODO: remove if?
             
             // now start temperature updates
+            if( DEBUG ) Log.d( TAG, "about to subscribe to tempFUpdater" );  // prints
             tempUpdateDisp = appInstance.wifiCommunicator.tempFUpdater  // emits JSON temp every 5 seconds
                     .retry( 3L)
                     .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ) )
+                    .startWith( 999F )  // causes logging but zaps UI; probably has to do with plot rendering?
                     .doOnNext( temp -> {
-                        while( timestampedHistory.remainingCapacity() < 1 ) timestampedHistory.poll();
+                        while( timestampedHistory.remainingCapacity() < 1 ) timestampedHistory.poll();  // make space in the queue if needed, discarding oldest
                         timestampedHistory.add( new Pair<>( new Date( ), temp ) );  // TODO: make it an ImmutableTriple with %DC?
-                        tempHistRelay.accept( timestampedHistory );  // relay the new history to UI or anyone listening
+                        //tempHistRelay.accept( timestampedHistory );  // relay the new history to UI or anyone listening (this kills UI if data exists)
+                        if( DEBUG ) Log.d( TAG, "new temp sample relayed" );
                     })
                     .subscribe(
                             // TODO: add smoothing?
-                            appInstance.bbqController::setCurrentVariableValue,
+                            temp -> {
+                                if( DEBUG ) Log.d( TAG, "got onNext temp value from tempFUpdater");
+                                appInstance.bbqController.setCurrentVariableValue( temp );
+                            },
                             tempErr -> { if( DEBUG ) Log.d( TAG, "****** Error updating temp: " + tempErr.getMessage() + " ******"); }
                     );
             serviceCompositeDisp.add( tempUpdateDisp );
             
             // start the BBQ Controller loop (we think it's fixed to not change UI and run all the time)
             pidHandler.removeCallbacksAndMessages( null );  // cancel any pending loop run (flush everything)
-            pidHandler.postDelayed( appInstance.bbqController.pidLoopRunnable, 2000L );  // give it a couple seconds
+            pidHandler.postDelayed( appInstance.bbqController.pidLoopRunnable, 2000L );  // give it a couple seconds TODO: reduce?
             
         } else {  // this is a restart
-        
+            if( DEBUG ) Log.d( TAG, "Apparently system is restarting the service" );  // TODO: more?
         }
         
         return START_STICKY;  // keep it running
@@ -214,7 +207,7 @@ public class ThermocoupleService extends Service {
         super.onDestroy( );
     }
     
-
+    
     
     // do we need this?
     class tempUpdateEmitter implements SingleEmitter<JSONObject> {

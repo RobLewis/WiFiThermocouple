@@ -81,8 +81,6 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     ComponentName serviceComponentName;             // returned by .startService(); just logged
     boolean serviceBound;                           // did service binding succeed?
     
-    ThermocoupleServiceConnection thermocoupleServiceConnection;  // NEW  TODO: dump
-    
     private XYPlot tempHistoryPlot;
     private TempPlotSeries tempPlotSeries;          // implements XYSeries
     LineAndPointFormatter tempGraphFormatter;
@@ -154,12 +152,6 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                         .setAction( "Action", null ).show( );
             }
         } );
-        
-        
-        // Moved to ThermocoupleApp (service binding)
-        
-        thermocoupleServiceConnection = new ThermocoupleServiceConnection();  // NEW  --constructor logs TODO: eliminate(?)
-        
         
         
         if( DEBUG ) Log.d( TAG, "Exiting onCreate()" );
@@ -257,8 +249,6 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         );
         onPauseDisp.add( tempUpdateDisp );
         
-        
-        
         tempSliderDisp = tempSliderEventObservable
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(  // now emits SeekBarChangeEvent
@@ -274,24 +264,29 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                 );
         onPauseDisp.add( tempSliderDisp );
         
+// trying this in the onServiceConnected callback
+/*
         // subscribe to updates in temp history for graphing
-        
-        serviceConnectionDisp = appInstance.serviceConnectionState  // NEW
-                .subscribeOn( Schedulers.computation() )
+        serviceConnectionDisp = appInstance.serviceConnectionState  // NEW -- emits service connection state
+                .subscribeOn( Schedulers.computation() )  // TODO: best?
                 .subscribe(
                         state -> {
-                            if ( state ) graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(
-                                    newTempHistory -> {
-                                        tempPlotSeries.updatePlotData( newTempHistory );  // with sync
-                                        // TODO: redraw the graph
-                                        tempHistoryPlot.redraw();
-                                    }
-                            );
-                            else graphDataUpdateDisp.dispose();
+                            if ( state ) {
+                                graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(
+                                        newTempHistory -> {
+                                            tempPlotSeries.updatePlotData( newTempHistory );  // with sync
+                                            // TODO: redraw the graph
+                                            tempHistoryPlot.redraw();
+                                        }
+                                );
+                                onPauseDisp.add( graphDataUpdateDisp );
+                            }
+                            else graphDataUpdateDisp.dispose();  // if we lose service connection, can't update
                         },
                         error -> Log.d( TAG, "Error in serviceConnectionState: " + error.getMessage() )
                 );
-        
+        onPauseDisp.add( serviceConnectionDisp );  // no point trying to draw chart if app isn't visible
+*/
         
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
     }  // onResume
@@ -299,7 +294,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     
     @Override
     protected void onPause( ) {
-        if( DEBUG ) Log.d( TAG, "Entering onPause()" );
+        if( DEBUG ) Log.d( TAG, "Entering onPause(), canceling all onPause Disposables" );
         onPauseDisp.clear();
         super.onPause( );
         if( DEBUG ) Log.d( TAG, "Exiting onPause()" );
@@ -331,27 +326,27 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         onStopDisp.clear();  // because apparently onStop() isn't always called
     }
     
+    
+    
     /*---------------------------------SERVICE CONNECTION INTERFACE-----------------------------------*/
+    // this is now a callback from the invocation of bindService() in onStart()
+    
     @Override
     // Here, the IBinder has a getService() method that returns a reference to the Service instance
     @SuppressWarnings( "static-access" )
     public void onServiceConnected( ComponentName className, IBinder service ) {  // service is an IBinder (interface implemented by Binder)
         
         Log.d( TAG, "Entering onServiceConnected()" );
-        // We've bound to Service, cast the IBinder and get Service instance
         thermoBinder = (ThermocoupleService.LocalBinder) service;
-        // (casting it makes compiler aware of existence of getService() method)
         thermoServiceRef = thermoBinder.getService();
+        appInstance.thermocoupleService = thermoServiceRef;  // separate reference stored in app singleton  TODO: need?
+        appInstance.serviceConnectionState.accept( thermoServiceRef != null );  // emit the Boolean state of the service connection NEW
         
-        appInstance.serviceConnectionState.accept( thermoServiceRef != null );  // emit the state of the service connection NEW
-        appInstance.thermocoupleService = thermoServiceRef;  // in app
-        
-        appInstance.thermocoupleService = thermoServiceRef;   // TODO: redundant?
-        if( thermoServiceRef == null ) throw new RuntimeException( TAG
+        if( thermoServiceRef == null ) throw new RuntimeException( TAG  // TODO: need? shouldn't happen? any point to relaying False above?
                 + ": onServiceConnected returned null from getService()" );
         
-        
-        // This updates the UI except for the (NEW) temp history graph and perhaps other stuff
+        // This updates the UI except for the (NEW) temp history graph and perhaps other stuff  TODO: move?
+        // note should probably take effect in onStart() because app is visible, if not interactable
         pidParameterChangesDisp = appInstance.pidState.pidStatePublisher
                 .observeOn( AndroidSchedulers.mainThread() )  // don't forget!
                 .subscribe(  // receive updated parameters & redraw UI
@@ -361,26 +356,38 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                                     + (updatedParams.intClamped? " (clamped)" : "") );
                             toggleFanButton.setText( "PID output on: " + updatedParams.outputOn );
                             setTempButton.setText( "Current Setpoint: " + updatedParams.setPoint + "°F" );
+                            if( DEBUG ) Log.d( TAG, "pidStatePublisher updated parameters" );
                         }
                 );
-        onStopDisp.add( pidParameterChangesDisp );  // TODO: dispose in both onStop() and onDestroy() (?)
+        onStopDisp.add( pidParameterChangesDisp );  // dispose in onStop()
+    
         
-        // above is part of Service implementation
-        
+        // update the graph
+        graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(
+                newTempHistory -> {
+                    tempPlotSeries.updatePlotData( newTempHistory );  // with sync
+                    // TODO: redraw the graph
+                    tempHistoryPlot.redraw();
+                    if( DEBUG ) Log.d( TAG, "called tempHistoryPlot.redraw()" );
+                }
+        );
+        onStopDisp.add( graphDataUpdateDisp );
+    
+    
         tempSlider.setProgress( Math.round( appInstance.bbqController.getSetpoint() ) );
         
         // set initial applicationState
         // make sure fan is off
-        appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off  FIXME: first bad UUID?
+        appInstance.wifiCommunicator.fanControlWithWarning( false )  // fan off
                 .retry( 2 )  // try up to 3 times
                 .subscribe(
                         httpResponse -> {
                             toggleFanButton.setText( "FAN IS INITIALLY OFF" );
                         },
                         httpError -> {
-                            Toast.makeText( GraphActivity.this, "Fan shutoff in onStart() failed after retries"
+                            Toast.makeText( GraphActivity.this, "Fan shutoff in onServiceConnected() failed after retries: "
                                     + httpError.getMessage(), Toast.LENGTH_LONG ).show();
-                            toggleFanButton.setText( "Error turning fan off in onStart()" );
+                            toggleFanButton.setText( "Error turning fan off in onServiceConnected()" );
                         } );
         
         Log.d( TAG, "Finished onServiceConnected()" );
@@ -391,8 +398,8 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
     public void onServiceDisconnected( ComponentName name ) {  // component name of the service whose connection has been lost.
         
         thermoServiceRef = null;
-        appInstance.serviceConnectionState.accept( false );  //  NEW relay to listeners
         appInstance.thermocoupleService = null;  // in app
+        appInstance.serviceConnectionState.accept( false );  //  NEW relay to listeners
         
         Log.d( TAG, "Finished onServiceDisconnected()" );
     }

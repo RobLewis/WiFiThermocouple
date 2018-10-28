@@ -92,8 +92,8 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         
         appInstance = ThermocoupleApp.getSoleInstance();
         
-        client = new OkHttpClient.Builder()     // recommended to have only one
-                .retryOnConnectionFailure( true )  // this supposedly defaults true but trying it to fix "Socket closed" errors
+        client = new OkHttpClient.Builder()                 // recommended to have only one
+                .retryOnConnectionFailure( true )           // this supposedly defaults true but trying it to fix "Socket closed" errors
                 //.connectTimeout( 10L, TimeUnit.SECONDS )  // the default is said to be 10 seconds
                 .build();
         
@@ -107,15 +107,12 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
     WiFiCommunicator() {
         
         // providers of custom UUIDs for JSON and HTTP requests (passed the URL, which we ignore and return serialized UUIDs)
-        tempGetUUIDSupplier = new SerialUUIDSupplier( TEMP_GET_UPPER_HALF, "Temp Getter" );                      // 0x3000
-        //tempUpdateUUIDSupplier = new SerialUUIDSupplier( TEMP_UPDATE_UPPER_HALF, "Temp Updater" );               // 0x4000
+        tempGetUUIDSupplier = new SerialUUIDSupplier( TEMP_GET_UPPER_HALF, "Temp Getter" );                             // 0x3000
         watchdogStatusUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_STATUS_UPPER_HALF, "Watchdog Status Checker" );   // 0x6000
-        watchdogEnableUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF, "Watchdog Enabler" );   // 0x1000
-        watchdogFeedUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF, "Watchdog Feeder" );        // 0x2000
-        analogReadUUIDSupplier = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF, "Analog Reader" );              // 0x7000
-        fanControlUUIDSupplier = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF, "Fan Controller" );             // 0x5000
-        
-        //SystemClock.sleep( 2000L );  // FIXME: is it conceivable we have to wait for these constructors?
+        watchdogEnableUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_ENABLE_UPPER_HALF, "Watchdog Enabler" );          // 0x1000
+        watchdogFeedUUIDSupplier = new SerialUUIDSupplier( WATCHDOG_FEED_UPPER_HALF, "Watchdog Feeder" );               // 0x2000
+        analogReadUUIDSupplier = new SerialUUIDSupplier( ANALOG_READ_UPPER_HALF, "Analog Reader" );                     // 0x7000
+        fanControlUUIDSupplier = new SerialUUIDSupplier( FAN_CONTROL_UPPER_HALF, "Fan Controller" );                    // 0x5000
         
         // GraphActivity also uses this in onStart() to get initial reading and onResume() to manually update current temp
         tempFGetter = new AsyncJSONGetter( TEMP_F_URL, client, tempGetUUIDSupplier );
@@ -129,19 +126,7 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
         watchdogEnabler = new AsyncHTTPRequester( ENABLE_WD_URL, client, watchdogEnableUUIDSupplier );
         watchdogDisabler = new AsyncHTTPRequester( DISABLE_WD_URL, client, watchdogEnableUUIDSupplier );  // same supplier
         watchdogFeeder = new AsyncHTTPRequester( RESET_WD_URL, client, watchdogFeedUUIDSupplier );
-//        watchdogFeedObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )  // 40
-//                .startWith( -1L )  // kick it off right away TODO: needed?
-//                .flatMapSingle( resetNow -> watchdogFeeder.request( ) );
-        
-        analogReader = new AsyncJSONGetter( READ_ANALOG_URL, client, analogReadUUIDSupplier );
-        analogInUpdater = Observable.interval( ANALOG_IN_UPDATE_SECS, SECONDS )
-                .flatMapSingle( tick -> analogReader.get( ) );
-        
-        fanTurnon = new AsyncHTTPRequester( FAN_ON_URL, client, fanControlUUIDSupplier );
-        fanTurnoff = new AsyncHTTPRequester( FAN_OFF_URL, client, fanControlUUIDSupplier );
-        
-        // NEW: subscribe to enable the watchdog and start feeding, unsubscribe to disable
-        // TODO: test; should replace other schemes -- seems to work
+    
         watchDogMaintainObservable = Observable.interval( WATCHDOG_CHECK_SECONDS, SECONDS )
                 .doOnSubscribe( disposable -> watchdogEnabler.request().retry( 2L ).subscribe( ) )
                 .map( resetTime -> {
@@ -150,6 +135,13 @@ class WiFiCommunicator {  // should probably be a Singleton (it is: see Thermoco
                     return resetTime;
                 })
                 .doOnDispose( () -> watchdogDisabler.request().retry( 2L ).subscribe( ) );
+    
+        analogReader = new AsyncJSONGetter( READ_ANALOG_URL, client, analogReadUUIDSupplier );
+        analogInUpdater = Observable.interval( ANALOG_IN_UPDATE_SECS, SECONDS )
+                .flatMapSingle( tick -> analogReader.get( ) );
+        
+        fanTurnon = new AsyncHTTPRequester( FAN_ON_URL, client, fanControlUUIDSupplier );
+        fanTurnoff = new AsyncHTTPRequester( FAN_OFF_URL, client, fanControlUUIDSupplier );
         
         if( DEBUG ) Log.d( TAG, "exiting constructor" );
     

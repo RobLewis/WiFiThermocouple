@@ -33,11 +33,11 @@ public class ThermocoupleApp extends Application {
     ApplicationState applicationState;
     PIDState pidState;
     BBQController bbqController;
-    ComponentName serviceComponentName;
     ThermocoupleService thermocoupleService;  // set by ThermocoupleService onCreate() calling appInstance.setServiceRef( this )
     GraphActivity graphActivity;
+    ComponentName serviceComponentName;
     
-    BehaviorRelay<Boolean> serviceConnectionState;  // extends Relay, which extends Observable and implements Consumer
+    BehaviorRelay<Boolean> serviceConnectionState;  // extends Relay, which extends Observable and implements Consumer TODO: need?
     
     Intent startThermoServiceIntent;
     
@@ -53,7 +53,7 @@ public class ThermocoupleApp extends Application {
         sAppInstance = this;  // the created App instance stores a reference to itself in the static variable
         sAppInstance.initialize();
         
-        serviceConnectionState = BehaviorRelay.createDefault( false );
+        serviceConnectionState = BehaviorRelay.createDefault( false );  // TODO: need?
         
         if( DEBUG ) Log.d( TAG, "Exiting onCreate()");
     }
@@ -61,8 +61,13 @@ public class ThermocoupleApp extends Application {
     protected void initialize() {
         // do initialization in this instance method (with instance members, not static)
         if( DEBUG ) Log.d( TAG, "App initialize() entered");
+    
+        wifiCommunicator = new WiFiCommunicator();  // TODO: is this right?  NEW: moved ahead of starting service
+        applicationState = new ApplicationState();  // TODO: need? (maybe if we engage controller's internal DC etc.)
+        pidState = new PIDState();
+        bbqController = new BBQController();
         
-        // start Service; bind to it in Activity
+        // start Service (not usable until onServiceConnected() callback
         startThermoServiceIntent = new Intent( getApplicationContext(), ThermocoupleService.class );
         // Note: startForegroundService() requires API 26
         serviceComponentName = getApplicationContext().startService( startThermoServiceIntent );
@@ -72,19 +77,14 @@ public class ThermocoupleApp extends Application {
             }else throw new NullPointerException( "Attempt to start Service failed" );
         }
         
-        wifiCommunicator = new WiFiCommunicator();  // TODO: is this right?
-        applicationState = new ApplicationState();  // TODO: need? (maybe if we engage controller's internal DC etc.)
-        pidState = new PIDState();
-        bbqController = new BBQController();
-        
-        //SystemClock.sleep( 2000L );  // TODO: desperation (didn't help) [if we were going to do this, try after bundService() call]
+        //SystemClock.sleep( 2000L );  // TODO: desperation (didn't help) [if we were going to do this, try after bindService() call]
         
         if( DEBUG ) Log.d( TAG, "App initialize() exited");
     }
     
     
     
-    void setGraphActivity( GraphActivity graphActivity ) { this.graphActivity = graphActivity; }
+    void setGraphActivity( GraphActivity graphActivity ) { this.graphActivity = graphActivity; }  // TODO: need?
     
     void setServiceRef( ThermocoupleService serviceRef ) { thermocoupleService = serviceRef; }  // FIXME: desperation; elim? need?
     
