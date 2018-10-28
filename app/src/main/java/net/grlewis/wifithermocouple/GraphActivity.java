@@ -118,7 +118,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         // NEW: initialize our XYPlot reference & components:
         tempHistoryPlot = (XYPlot) findViewById(R.id.temp_history);  // "cast is redundant"?
         tempPlotSeries = new TempPlotSeries();
-        tempHistoryPlot.setRenderMode( Plot.RenderMode.USE_BACKGROUND_THREAD );
+        tempHistoryPlot.setRenderMode( Plot.RenderMode.USE_BACKGROUND_THREAD );  // turning this off gives blank, frozen UI
         tempGraphFormatter = new LineAndPointFormatter(this, R.xml.line_point_formatter_with_labels);
         tempHistoryPlot.addSeries(tempPlotSeries, tempGraphFormatter);
         tempGraphWidget = tempHistoryPlot.getGraph();
@@ -177,15 +177,16 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
             }
         }
         
-        // kill some time
+        // kill some time waiting for onServiceConnected() callback
         Toast.makeText( this, "Connecting to Service…", Toast.LENGTH_LONG ).show();
-        
-        // we continue upon getting the onServiceConnected() callback
+        // we continue setup in the onServiceConnected() callback
         
         if( DEBUG ) Log.d( TAG, "Exiting onStart()" );
     }
     
     @Override
+    // Note that nothing in here can depend on the Service because we don't know if it's set up yet
+    // (could have an Observable that notifies when it's available)
     protected void onResume( ) {
         
         if( DEBUG ) Log.d( TAG, "Entering onResume()" );
@@ -249,6 +250,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         );
         onPauseDisp.add( tempUpdateDisp );
         
+        // handle movement of the temp-setting slider
         tempSliderDisp = tempSliderEventObservable
                 .observeOn( AndroidSchedulers.mainThread() )
                 .subscribe(  // now emits SeekBarChangeEvent
@@ -263,30 +265,6 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                         }
                 );
         onPauseDisp.add( tempSliderDisp );
-
-// trying this in the onServiceConnected callback
-/*
-        // subscribe to updates in temp history for graphing
-        serviceConnectionDisp = appInstance.serviceConnectionState  // NEW -- emits service connection state
-                .subscribeOn( Schedulers.computation() )  // TODO: best?
-                .subscribe(
-                        state -> {
-                            if ( state ) {
-                                graphDataUpdateDisp = appInstance.thermocoupleService.tempHistRelay.subscribe(
-                                        newTempHistory -> {
-                                            tempPlotSeries.updatePlotData( newTempHistory );  // with sync
-                                            // TODO: redraw the graph
-                                            tempHistoryPlot.redraw();
-                                        }
-                                );
-                                onPauseDisp.add( graphDataUpdateDisp );
-                            }
-                            else graphDataUpdateDisp.dispose();  // if we lose service connection, can't update
-                        },
-                        error -> Log.d( TAG, "Error in serviceConnectionState: " + error.getMessage() )
-                );
-        onPauseDisp.add( serviceConnectionDisp );  // no point trying to draw chart if app isn't visible
-*/
         
         if( DEBUG ) Log.d( TAG, "Exiting onResume()" );
     }  // onResume
@@ -316,14 +294,11 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         if( DEBUG ) Log.d( TAG, "Exiting onStop()" );
     }
     
-    // TODO: unbind service onDestroy() (?)
-    
-    
     @Override
     protected void onDestroy( ) {
         super.onDestroy( );  // FIXME: does putting this first fix the "can't destroy activity; service is not registered" crash? No.
         if( DEBUG ) Log.d( TAG, "onDestroy() entered");
-        onStopDisp.clear();  // because apparently onStop() isn't always called
+        onStopDisp.clear();  // because apparently onStop() isn't always called??
     }
     
     
@@ -351,7 +326,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                 .observeOn( AndroidSchedulers.mainThread() )  // don't forget!
                 .subscribe(  // receive updated parameters & redraw UI
                         updatedParams -> {
-                            updateTempButton.setText( "Current Temperature: " + updatedParams.currentVariableValue + "°F" );  // FIXME: not getting set?
+                            updateTempButton.setText( "Current Temperature: " + updatedParams.currentVariableValue + "°F" );
                             togglePIDButton.setText( "PID enabled: " + updatedParams.enabled
                                     + (updatedParams.intClamped? " (clamped)" : "") );
                             toggleFanButton.setText( "PID output on: " + updatedParams.outputOn );

@@ -60,6 +60,8 @@ class TempPlotSeries implements XYSeries, PlotListener {
     
     
     // PlotListener Implementation (supposed to write-lock data changes before redraw and release after)
+    // it appears these must be called on background thread because doesn't freeze app?
+    // eliminating sync/wait/notifyAll doesn't appear to help: still no drawing
     @Override
     public void onBeforeDraw( Plot source, Canvas canvas ) {
         synchronized ( this ) {
