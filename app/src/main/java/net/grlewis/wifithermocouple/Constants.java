@@ -123,7 +123,7 @@ final class Constants {
     // New, for PIDState constructor
     static final float DEFAULT_SETPOINT = 80f;               // TODO: consider °F or °C? Set to current temp value on startup?
     static final float DEFAULT_GAIN = 1f;                    // TODO: value? (started at 2 from AppleScript)
-    static final float DEFAULT_PROP_COEFF = 10f;             // TODO: value? (16 from AppleScript)
+    static final float DEFAULT_PROP_COEFF = 5f;              // TODO: value? (16 from AppleScript, then 10)
     static final float DEFAULT_INT_COEFF = 1f;               // TODO: value? (2 from AppleScript)
     static final float DEFAULT_DIFF_COEFF = 5f;              // TODO: value? (3 from AppleScript)
     static final float DEFAULT_PERIOD_SECS = 10f;            // TODO: value?
