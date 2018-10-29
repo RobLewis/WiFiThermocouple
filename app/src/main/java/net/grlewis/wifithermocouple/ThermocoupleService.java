@@ -169,7 +169,7 @@ public class ThermocoupleService extends Service {
             tempUpdateDisp = appInstance.wifiCommunicator.tempFUpdater  // emits JSON temp every 5 seconds
                     .retry( 3L)
                     .map( jsonTemp -> (float) jsonTemp.getDouble( "TempF" ) )
-                    .startWith( 999F )  // causes logging but zaps UI; probably has to do with plot rendering?
+                    //.startWith( 999F )  // causes logging but zaps UI; probably has to do with plot rendering?
                     .doOnNext( temp -> {
                         while( timestampedHistory.remainingCapacity() < 1 ) timestampedHistory.poll();  // make space in the queue if needed, discarding oldest
                         timestampedHistory.add( new Pair<>( new Date( ), temp ) );  // TODO: make it an ImmutableTriple with %DC?
