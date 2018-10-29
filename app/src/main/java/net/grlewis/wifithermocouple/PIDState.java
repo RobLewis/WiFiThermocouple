@@ -36,7 +36,7 @@ class PIDState implements Cloneable, Serializable {
          Boolean enabled;            // is the PID enabled?
         private Boolean reset;       // has it been reset?
          Boolean outputOn;           // is the fan, heater, whatever currently on?
-        private Float minOutPct;     // the minimum controlled output percentage that will cause turnon
+        private Float minOutPct;     // the minimum controlled output percentage that will cause turnon (or minimum diff from 100% that will turnoff)
         
         private Float analogInVolts; // 0.0-1.0 (-1 means not set)
         

@@ -259,8 +259,13 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
                                 setTempButton.setText( "SETPOINT: "
                                         + String.valueOf( ((SeekBarProgressChangeEvent) newEvent).progress() ) + "°F" );
                             } else if( newEvent instanceof SeekBarStopChangeEvent ) {
-                                appInstance.bbqController.set( (float) tempSlider.getProgress() );  // FIXME: wasn't going through BBQController
-                                if( DEBUG ) Log.d( TAG, "Setpoint changed to " + tempSlider.getProgress() );
+                                float previousSetpoint = appInstance.bbqController.getSetpoint();
+                                float previousMin = appInstance.bbqController.getLoTemp();
+                                float previousMax = appInstance.bbqController.getHiTemp();
+                                appInstance.bbqController.set( (float) tempSlider.getProgress() );
+                                if( DEBUG ) Log.d( TAG, "Setpoint changed to " + tempSlider.getProgress()
+                                        + "; previous low/setpoint/high: " + previousMin + "/"
+                                        + previousSetpoint + "/" + previousMax );
                             }
                         }
                 );

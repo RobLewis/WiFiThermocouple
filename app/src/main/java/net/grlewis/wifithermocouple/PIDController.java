@@ -57,4 +57,12 @@ interface PIDController {
     void setDutyCyclePercent( float dcPct );
     Float getDutyCyclePercent();
     
+    
+    // New stuff to track temp high/low
+    // When setpoint is changed we log previous results and start watching new ones
+    // Wait until the temperature passes through the setpoint (in either direction) to start updating
+    void resetHiLoTracking();
+    Float getHiTemp();
+    Float getLoTemp();
+    
 }

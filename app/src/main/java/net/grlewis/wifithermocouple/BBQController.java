@@ -15,13 +15,14 @@ class BBQController implements PIDController {
     private GraphActivity graphActivityRef;
     
     // PID parameters & variables are in pidState
-    
-    //private float proportionalTerm;
-    //private float integralTerm;
-    private boolean integralClamped;
-    //private float differentialTerm;
-    private float outputPercent;
-    //private float error;
+    // the following are not strictly speaking "parameters"
+    // used to track performance
+    private float minTemp;
+    private float maxTemp;
+    private float previousMin;
+    private float previousMax;
+    private boolean crossedSetpoint;
+    private boolean crossIncreasing;  // do we look for temperature rising or falling through setpoint?
     
     private Handler pidHandler;
     final PIDLoopRunnable pidLoopRunnable;
@@ -40,6 +41,12 @@ class BBQController implements PIDController {
         pidHandler = newHandler;
         pidLoopRunnable = new PIDLoopRunnable( );
         pidState.set( DEFAULT_SETPOINT );  // need some defined setpoint or won't start
+        
+        minTemp = previousMin =  999F;  // marker values for tracking
+        maxTemp = previousMax = -999F;
+        crossedSetpoint = false;
+        crossIncreasing = true;   // don't really know yet
+        
         if( DEBUG ) Log.d( TAG, "exiting constructor" );
     }
     
@@ -58,6 +65,8 @@ class BBQController implements PIDController {
         pidState.setIntAccum( 0f );           // with no integral term
         pidState.setPublishChanges( true );   // re-enable publishing
         pidState.setReset( false );           // and trigger publishing
+        // we have a new setpoint; update tracking
+        resetHiLoTracking();
     }
     
     @Override  // OK
@@ -158,6 +167,20 @@ class BBQController implements PIDController {
     // current value of the controlled variable
     public synchronized void setCurrentVariableValue( float value ) {
         pidState.setCurrentVariableValue( value );
+        
+        if( crossedSetpoint ) {  // if we have already passed through the setpoint, just update values
+            maxTemp = value > maxTemp? value : maxTemp;
+            minTemp = value < minTemp? value : minTemp;
+        } else {  // need to see if we have just crossed setpoint
+            crossedSetpoint = ( (crossIncreasing && value > getSetpoint( ))
+                    || (!crossIncreasing && value < getSetpoint( ))
+                    || value == getSetpoint() );
+            if( crossedSetpoint ) {
+                maxTemp = value > maxTemp? value : maxTemp;
+                minTemp = value < minTemp? value : minTemp;
+            }
+        }
+        
     }
     public Float getCurrentVariableValue() { return pidState.getCurrentVariableValue(); }
     
@@ -165,6 +188,7 @@ class BBQController implements PIDController {
     
     
     @Override
+    @SuppressWarnings( "CheckResult" )  // warning that result of 'subscribe' is not used
     public void setOutputOn( boolean outputState ) {
         appInstance.wifiCommunicator.fanControlWithWarning( outputState )
                 .retry( 3L )
@@ -222,6 +246,31 @@ class BBQController implements PIDController {
     public Float getDutyCyclePercent( ) {
         return pidState.getCurrentPctg();
     }
+    
+    
+    // NEW temp tracking
+    
+    @Override
+    public void resetHiLoTracking( ) {
+        previousMin = minTemp;
+        previousMax = maxTemp;
+        minTemp =  999F;
+        maxTemp = -999F;
+        crossedSetpoint = false;  // wait until we pass through the setpoint before starting to track
+        crossIncreasing = getCurrentVariableValue() < getSetpoint();
+        if( getCurrentVariableValue().equals( getSetpoint() ) ) crossedSetpoint = true;  // OK to start tracking if they're equal
+    }
+    
+    @Override
+    public Float getHiTemp( ) {
+        return maxTemp;
+    }
+    
+    @Override
+    public Float getLoTemp( ) {
+        return minTemp;
+    }
+    
     
     // END OF INTERFACE IMPLEMENTATION  \\
     
