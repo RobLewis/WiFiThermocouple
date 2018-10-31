@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- for AndroidPlot (start with default settings from QuickStart XYPlot example) -->
+<!-- for AndroidPlot (start with default settings from QuickStart XYPlot example)
+try changing linePaint.strokeWidth from 5dp to 2dp, vertexPaint.strokeWidth from 20dp to 5 -->
 <config
-    linePaint.strokeWidth="5dp"
+    linePaint.strokeWidth="2dp"
     linePaint.color="#00AA00"
     vertexPaint.color="#007700"
-    vertexPaint.strokeWidth="20dp"
+    vertexPaint.strokeWidth="5dp"
     fillPaint.color="#00000000"
     pointLabelFormatter.textPaint.color="#CCCCCC"
     />

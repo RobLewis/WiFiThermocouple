@@ -25,8 +25,13 @@ class TempPlotSeries implements XYSeries, PlotListener {
     
     private Pair<Date, Float>[] plotArray;
     
+    public TempPlotSeries( ) {  // constructor may solve crash of null array
+        plotArray = new Pair[0];
+    }
+    
     void updatePlotData( ArrayBlockingQueue<Pair<Date, Float>> dataQueue ) throws InterruptedException {
         synchronized ( this ) {
+            if( DEBUG ) Log.d( TAG, "updatePlotData entered with dataQueue size " + dataQueue.size() );
             //wait();       // don't update data until we're notified that current plot is done (& we can get lock) FIXME: elimination of wait/notify fixes app freeze
             plotArray = dataQueue.toArray( new Pair[0] );
             if( DEBUG ) Log.d( TAG, "updatePlotData run with " + plotArray.length + " data points" );
@@ -65,18 +70,18 @@ class TempPlotSeries implements XYSeries, PlotListener {
     @Override
     public void onBeforeDraw( Plot source, Canvas canvas ) {
         synchronized ( this ) {
-            try {
-                wait();  // wait for data updating to finish if it's in progress on another thread
-            } catch ( InterruptedException e ) {
-                // unlikely to be interrupted?
-            }
+//            try {
+//                wait();  // wait for data updating to finish if it's in progress on another thread
+//            } catch ( InterruptedException e ) {
+//                // unlikely to be interrupted?
+//            }
         }
     }
     // between these 2 calls the plot is redrawn
     @Override
     public void onAfterDraw( Plot source, Canvas canvas ) {
         synchronized ( this ) {
-            notifyAll( );  // plot done, OK to update data
+//            notifyAll( );  // plot done, OK to update data
         }
     }
 }

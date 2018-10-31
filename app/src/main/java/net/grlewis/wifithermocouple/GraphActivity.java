@@ -118,7 +118,7 @@ public class GraphActivity extends AppCompatActivity implements ServiceConnectio
         // NEW: initialize our XYPlot reference & components:
         tempHistoryPlot = (XYPlot) findViewById(R.id.temp_history);  // "cast is redundant"?
         tempPlotSeries = new TempPlotSeries();
-        tempHistoryPlot.setRenderMode( Plot.RenderMode.USE_BACKGROUND_THREAD );  // turning this off gives blank, frozen UI
+        //tempHistoryPlot.setRenderMode( Plot.RenderMode.USE_BACKGROUND_THREAD );  // turning this off gives blank, frozen UI
         tempGraphFormatter = new LineAndPointFormatter(this, R.xml.line_point_formatter_with_labels);
         tempHistoryPlot.addSeries(tempPlotSeries, tempGraphFormatter);
         tempGraphWidget = tempHistoryPlot.getGraph();
